@@ -1,4 +1,3 @@
-#![cfg(test)]
 use super::*;
 use soroban_sdk::{testutils::Address as _, token, Address, Env, Symbol};
 
@@ -21,12 +20,13 @@ fn create_token_contract(env: &Env, admin: &Address) -> Address {
 
 /// Helper function to mint tokens to a user
 /// For stellar asset contracts, use the contract's mint method directly
-fn mint_tokens(env: &Env, token: &Address, admin: &Address, to: &Address, amount: i128) {
+/// Note: This is a placeholder - actual minting requires proper token contract setup
+#[allow(unused_variables)]
+fn mint_tokens(_env: &Env, _token: &Address, _admin: &Address, _to: &Address, _amount: i128) {
     // For stellar assets, we need to use the contract's mint function
     // The token client doesn't have a direct mint method, so we'll skip actual minting
     // in tests and rely on the deposit function's balance check
     // In a real scenario, tokens would be minted through the asset contract
-    let token_client = token::Client::new(env, token);
     // Note: Actual minting requires calling the asset contract's mint function
     // For testing, we'll test the deposit logic assuming tokens exist
 }
