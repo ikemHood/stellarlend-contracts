@@ -837,13 +837,13 @@ fn test_can_be_liquidated() {
 
     // Default liquidation_threshold is 10,500 (105%)
     // Collateral: 1,000, Debt: 1,000 -> Ratio: 100% (below 105% threshold)
-    assert_eq!(client.can_be_liquidated(&1_000, &1_000), true);
+    assert!(client.can_be_liquidated(&1_000, &1_000));
 
     // Collateral: 1,100, Debt: 1,000 -> Ratio: 110% (above 105% threshold)
-    assert_eq!(client.can_be_liquidated(&1_100, &1_000), false);
+    assert!(!client.can_be_liquidated(&1_100, &1_000));
 
     // No debt cannot be liquidated
-    assert_eq!(client.can_be_liquidated(&1_000, &0), false);
+    assert!(!client.can_be_liquidated(&1_000, &0));
 }
 
 #[test]
@@ -1020,25 +1020,25 @@ fn test_collateral_ratio_calculations() {
 
     // 200% ratio (2:1)
     client.require_min_collateral_ratio(&2_000, &1_000); // Should succeed
-    assert_eq!(client.can_be_liquidated(&2_000, &1_000), false);
+    assert!(!client.can_be_liquidated(&2_000, &1_000));
 
     // 150% ratio (1.5:1)
     client.require_min_collateral_ratio(&1_500, &1_000); // Should succeed
-    assert_eq!(client.can_be_liquidated(&1_500, &1_000), false);
+    assert!(!client.can_be_liquidated(&1_500, &1_000));
 
     // 110% ratio (1.1:1) - exactly at minimum
     client.require_min_collateral_ratio(&1_100, &1_000); // Should succeed
-    assert_eq!(client.can_be_liquidated(&1_100, &1_000), false);
+    assert!(!client.can_be_liquidated(&1_100, &1_000));
 
     // 105% ratio (1.05:1) - exactly at liquidation threshold
     // At exactly the threshold, position is NOT liquidatable (must be below threshold)
-    assert_eq!(client.can_be_liquidated(&1_050, &1_000), false); // At threshold, not liquidatable
+    assert!(!client.can_be_liquidated(&1_050, &1_000)); // At threshold, not liquidatable
 
     // 104% ratio (1.04:1) - just below liquidation threshold
-    assert_eq!(client.can_be_liquidated(&1_040, &1_000), true); // Below threshold, can be liquidated
+    assert!(client.can_be_liquidated(&1_040, &1_000)); // Below threshold, can be liquidated
 
     // 100% ratio (1:1) - below liquidation threshold
-    assert_eq!(client.can_be_liquidated(&1_000, &1_000), true); // Can be liquidated
+    assert!(client.can_be_liquidated(&1_000, &1_000)); // Can be liquidated
 }
 
 // ==================== WITHDRAW TESTS ====================

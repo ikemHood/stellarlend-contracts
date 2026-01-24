@@ -366,8 +366,7 @@ pub fn set_pause_switches(
     let mut config = get_risk_config(env).ok_or(RiskManagementError::InvalidParameter)?;
 
     // Update all pause switches
-    let mut iter = switches.iter();
-    while let Some((op, paused)) = iter.next() {
+    for (op, paused) in switches.iter() {
         config.pause_switches.set(op, paused);
     }
 
