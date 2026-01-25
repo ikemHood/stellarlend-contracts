@@ -1,7 +1,7 @@
-use super::*;
+use crate::{deposit, HelloContract, HelloContractClient};
 use soroban_sdk::{testutils::Address as _, token, Address, Env, Symbol};
 
-use deposit::{DepositDataKey, Position, ProtocolAnalytics, UserAnalytics};
+use crate::deposit::{DepositDataKey, Position, ProtocolAnalytics, UserAnalytics};
 
 /// Helper function to create a test environment
 fn create_test_env() -> Env {
@@ -2331,7 +2331,7 @@ fn test_configure_oracle() {
     client.initialize(&admin);
 
     // Configure oracle
-    use oracle::OracleConfig;
+    use crate::oracle::OracleConfig;
     let config = OracleConfig {
         max_deviation_bps: 1000,     // 10%
         max_staleness_seconds: 7200, // 2 hours
@@ -2563,7 +2563,7 @@ fn test_configure_flash_loan() {
     client.initialize(&admin);
 
     // Configure flash loan
-    use flash_loan::FlashLoanConfig;
+    use crate::flash_loan::FlashLoanConfig;
     let config = FlashLoanConfig {
         fee_bps: 18, // 0.18%
         max_amount: 1000000,
