@@ -2797,8 +2797,14 @@ fn test_risk_multiple_pause_switches_all_active() {
         // Verify all switches are set
         let retrieved: soroban_sdk::Map<Symbol, bool> =
             env.storage().persistent().get(&pause_key).unwrap();
-        assert_eq!(retrieved.get(Symbol::new(&env, "pause_deposit")), Some(true));
-        assert_eq!(retrieved.get(Symbol::new(&env, "pause_withdraw")), Some(true));
+        assert_eq!(
+            retrieved.get(Symbol::new(&env, "pause_deposit")),
+            Some(true)
+        );
+        assert_eq!(
+            retrieved.get(Symbol::new(&env, "pause_withdraw")),
+            Some(true)
+        );
         assert_eq!(retrieved.get(Symbol::new(&env, "pause_repay")), Some(true));
     });
 }
@@ -3056,7 +3062,10 @@ fn test_risk_emergency_full_protocol_pause() {
         // Verify emergency state
         let retrieved: soroban_sdk::Map<Symbol, bool> =
             env.storage().persistent().get(&pause_key).unwrap();
-        assert_eq!(retrieved.get(Symbol::new(&env, "emergency_mode")), Some(true));
+        assert_eq!(
+            retrieved.get(Symbol::new(&env, "emergency_mode")),
+            Some(true)
+        );
     });
 }
 
