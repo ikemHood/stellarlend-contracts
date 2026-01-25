@@ -3,6 +3,7 @@
 use soroban_sdk::{
     contract, contractimpl, contracttype, Address, Env, IntoVal, Map, String, Symbol,
 };
+#![allow(clippy::too_many_arguments)] // Allow for generated client functions with many parameters
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol, Vec};
 
 mod deposit;
@@ -48,6 +49,16 @@ use flash_loan::{
     configure_flash_loan, execute_flash_loan, repay_flash_loan, set_flash_loan_fee, FlashLoanConfig,
 };
 
+mod liquidate;
+use liquidate::liquidate;
+
+mod interest_rate;
+use interest_rate::{
+    get_current_borrow_rate, get_current_supply_rate, get_current_utilization,
+    initialize_interest_rate_config, set_emergency_rate_adjustment, update_interest_rate_config,
+    InterestRateError,
+};
+
 #[contract]
 pub struct HelloContract;
 
@@ -60,7 +71,7 @@ impl HelloContract {
 
     /// Initialize the contract with admin address and governance contract ID.
     ///
-    /// Sets up the risk management system with default parameters.
+    /// Sets up the risk management system and interest rate model with default parameters.
     /// Must be called before any other operations.
     ///
     /// # Arguments
@@ -78,6 +89,11 @@ impl HelloContract {
             .instance()
             .set(&ContractDataKey::GovernanceAddress, &governance_id);
         initialize_risk_management(&env, admin)
+    pub fn initialize(env: Env, admin: Address) -> Result<(), RiskManagementError> {
+        initialize_risk_management(&env, admin.clone())?;
+        initialize_interest_rate_config(&env, admin)
+            .map_err(|_| RiskManagementError::InvalidParameter)?;
+        Ok(())
     }
 
     /// Deposit collateral into the protocol
@@ -884,6 +900,260 @@ impl HelloContract {
         configure_flash_loan(&env, caller, config)
             .unwrap_or_else(|e| panic!("Flash loan error: {:?}", e))
     }
+
+    /// Liquidate an undercollateralized position
+    ///
+    /// Allows liquidators to liquidate undercollateralized positions by:
+    /// - Repaying debt on behalf of the borrower
+    /// - Receiving collateral plus a liquidation incentive
+    ///
+    /// # Arguments
+    /// * `liquidator` - The address of the liquidator
+    /// * `borrower` - The address of the borrower being liquidated
+    /// * `debt_asset` - The address of the debt asset to repay (None for native XLM)
+    /// * `collateral_asset` - The address of the collateral asset to receive (None for native XLM)
+    /// * `debt_amount` - The amount of debt to liquidate
+    ///
+    /// # Returns
+    /// Returns a tuple (debt_liquidated, collateral_seized, incentive_amount)
+    ///
+    /// # Events
+    /// Emits the following events:
+    /// - `liquidation`: Liquidation transaction event
+    /// - `position_updated`: Borrower position update event
+    /// - `analytics_updated`: Analytics update event
+    /// - `user_activity_tracked`: User activity tracking event
+    pub fn liquidate(
+        env: Env,
+        liquidator: Address,
+        borrower: Address,
+        debt_asset: Option<Address>,
+        collateral_asset: Option<Address>,
+        debt_amount: i128,
+    ) -> (i128, i128, i128) {
+        liquidate(
+            &env,
+            liquidator,
+            borrower,
+            debt_asset,
+            collateral_asset,
+            debt_amount,
+        )
+        .unwrap_or_else(|e| panic!("Liquidation error: {:?}", e))
+    }
+
+    /// Get current utilization rate
+    ///
+    /// Returns the current protocol utilization (borrows / deposits) in basis points.
+    ///
+    /// # Returns
+    /// Utilization rate in basis points (0-10000)
+    pub fn get_utilization(env: Env) -> i128 {
+        get_current_utilization(&env).unwrap_or_else(|e| panic!("Interest rate error: {:?}", e))
+    }
+
+    /// Get current borrow interest rate
+    ///
+    /// Returns the current borrow interest rate based on utilization.
+    ///
+    /// # Returns
+    /// Borrow rate in basis points (annual)
+    pub fn get_borrow_rate(env: Env) -> i128 {
+        get_current_borrow_rate(&env).unwrap_or_else(|e| panic!("Interest rate error: {:?}", e))
+    }
+
+    /// Get current supply interest rate
+    ///
+    /// Returns the current supply interest rate (borrow rate - spread).
+    ///
+    /// # Returns
+    /// Supply rate in basis points (annual)
+    pub fn get_supply_rate(env: Env) -> i128 {
+        get_current_supply_rate(&env).unwrap_or_else(|e| panic!("Interest rate error: {:?}", e))
+    }
+
+    /// Update interest rate configuration (admin only)
+    ///
+    /// Updates interest rate model parameters with validation.
+    ///
+    /// # Arguments
+    /// * `caller` - The caller address (must be admin)
+    /// * `base_rate_bps` - Optional new base rate (in basis points)
+    /// * `kink_utilization_bps` - Optional new kink utilization (in basis points)
+    /// * `multiplier_bps` - Optional new multiplier (in basis points)
+    /// * `jump_multiplier_bps` - Optional new jump multiplier (in basis points)
+    /// * `rate_floor_bps` - Optional new rate floor (in basis points)
+    /// * `rate_ceiling_bps` - Optional new rate ceiling (in basis points)
+    /// * `spread_bps` - Optional new spread (in basis points)
+    ///
+    /// # Returns
+    /// Returns Ok(()) on success
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_interest_rate_config(
+        env: Env,
+        caller: Address,
+        base_rate_bps: Option<i128>,
+        kink_utilization_bps: Option<i128>,
+        multiplier_bps: Option<i128>,
+        jump_multiplier_bps: Option<i128>,
+        rate_floor_bps: Option<i128>,
+        rate_ceiling_bps: Option<i128>,
+        spread_bps: Option<i128>,
+    ) -> Result<(), InterestRateError> {
+        update_interest_rate_config(
+            &env,
+            caller,
+            base_rate_bps,
+            kink_utilization_bps,
+            multiplier_bps,
+            jump_multiplier_bps,
+            rate_floor_bps,
+            rate_ceiling_bps,
+            spread_bps,
+        )
+    }
+
+    /// Set emergency rate adjustment (admin only)
+    ///
+    /// Allows admin to make emergency adjustments to interest rates.
+    ///
+    /// # Arguments
+    /// * `caller` - The caller address (must be admin)
+    /// * `adjustment_bps` - Emergency adjustment in basis points (can be negative)
+    ///
+    /// # Returns
+    /// Returns Ok(()) on success
+    pub fn set_emergency_rate_adjustment(
+        env: Env,
+        caller: Address,
+        adjustment_bps: i128,
+    ) -> Result<(), InterestRateError> {
+        set_emergency_rate_adjustment(&env, caller, adjustment_bps)
+    }
+
+    // ============================================================================
+    // CROSS-ASSET OPERATIONS
+    // ============================================================================
+
+    /// Initialize admin one time
+    pub fn initialize_ca(env: Env, admin: Address) -> Result<(), CrossAssetError> {
+        initialize(&env, admin)
+    }
+
+    /// Initialize asset configuration (admin only)
+    pub fn initialize_asset(
+        env: Env,
+        asset: Option<Address>,
+        config: AssetConfig,
+    ) -> Result<(), CrossAssetError> {
+        initialize_asset(&env, asset, config)
+    }
+
+    /// Update asset parameters (admin only)
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_asset_config(
+        env: Env,
+        asset: Option<Address>,
+        collateral_factor: Option<i128>,
+        borrow_factor: Option<i128>,
+        max_supply: Option<i128>,
+        max_borrow: Option<i128>,
+        can_collateralize: Option<bool>,
+        can_borrow: Option<bool>,
+    ) -> Result<(), CrossAssetError> {
+        update_asset_config(
+            &env,
+            asset,
+            collateral_factor,
+            borrow_factor,
+            max_supply,
+            max_borrow,
+            can_collateralize,
+            can_borrow,
+        )
+    }
+
+    /// Update asset price (admin)
+    pub fn update_asset_price(
+        env: Env,
+        asset: Option<Address>,
+        price: i128,
+    ) -> Result<(), CrossAssetError> {
+        update_asset_price(&env, asset, price)
+    }
+
+    /// Get user position for specific asset
+    pub fn get_user_asset_position(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+    ) -> AssetPosition {
+        get_user_asset_position(&env, &user, asset)
+    }
+
+    /// Get unified position summary across all assets
+    /// Returns total collateral, debt, health factor, and liquidation status
+    pub fn get_user_position_summary(
+        env: Env,
+        user: Address,
+    ) -> Result<UserPositionSummary, CrossAssetError> {
+        get_user_position_summary(&env, &user)
+    }
+
+    /// Deposit collateral with supply cap validation
+    pub fn ca_deposit_collateral(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        cross_asset_deposit(&env, user, asset, amount)
+    }
+
+    /// Withdraw collateral with health factor check
+    pub fn ca_withdraw_collateral(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        cross_asset_withdraw(&env, user, asset, amount)
+    }
+
+    /// Borrow assets against multi-asset collateral
+    pub fn ca_borrow_asset(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        cross_asset_borrow(&env, user, asset, amount)
+    }
+
+    /// Repay debt (interest paid first, then principal)
+    pub fn ca_repay_debt(
+        env: Env,
+        user: Address,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<AssetPosition, CrossAssetError> {
+        cross_asset_repay(&env, user, asset, amount)
+    }
+
+    /// Get list of all configured assets
+    pub fn get_asset_list(env: Env) -> Vec<AssetKey> {
+        get_asset_list(&env)
+    }
+
+    /// Get asset configuration
+    pub fn get_asset_config(
+        env: Env,
+        asset: Option<Address>,
+    ) -> Result<AssetConfig, CrossAssetError> {
+        get_asset_config_by_address(&env, asset)
+    }
+
+    // ============================================================================
 }
 
 #[cfg(test)]
@@ -892,5 +1162,4 @@ mod governance_test;
 mod test;
 mod tests {
     mod test;
-    // mod test_cross_asset;
 }
