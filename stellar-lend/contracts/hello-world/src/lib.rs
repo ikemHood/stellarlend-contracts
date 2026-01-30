@@ -1,6 +1,6 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol};
 #![no_std]
 #![allow(clippy::too_many_arguments)] // Allow for generated client functions with many parameters
+
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol, Vec};
 
 mod borrow;
@@ -21,12 +21,6 @@ use risk_management::{
     set_risk_params, RiskConfig, RiskManagementError,
 };
 use withdraw::withdraw_collateral;
-
-mod repay;
-use repay::repay_debt;
-
-mod borrow;
-use borrow::borrow_asset;
 
 mod cross_asset;
 use cross_asset::{

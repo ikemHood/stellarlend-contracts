@@ -63,7 +63,6 @@ pub struct RepayEvent {
 }
 
 /// Event data for a liquidation action.
-
 /// Publishes an event to the ledger.
 ///
 /// # Arguments
