@@ -26,6 +26,7 @@ pub struct SorobanRpcClient {
     /// Retry strategy
     retry_strategy: RetryStrategy,
     /// Configuration
+    #[allow(dead_code)]
     config: Arc<BlockchainConfig>,
     /// Request ID counter
     request_id: Arc<std::sync::atomic::AtomicU64>,
@@ -42,6 +43,7 @@ struct JsonRpcRequest {
 
 /// JSON-RPC response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcResponse {
     jsonrpc: String,
     id: RequestId,
@@ -53,6 +55,7 @@ struct JsonRpcResponse {
 
 /// JSON-RPC error
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct JsonRpcError {
     code: i64,
     message: String,
@@ -94,7 +97,7 @@ impl SorobanRpcClient {
         let client = Client::builder()
             .timeout(config.request_timeout)
             .build()
-            .map_err(|e| BlockchainError::NetworkError(e))?;
+            .map_err(BlockchainError::NetworkError)?;
 
         let retry_strategy = RetryStrategy::from_config(&config);
 

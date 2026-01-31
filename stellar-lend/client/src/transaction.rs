@@ -7,6 +7,7 @@ use crate::config::BlockchainConfig;
 use crate::error::{BlockchainError, Result};
 use crate::horizon::HorizonClient;
 use crate::soroban_rpc::{SimulateTransactionResult, SorobanRpcClient};
+#[allow(unused_imports)]
 use crate::types::{TransactionEnvelopeXdr, TransactionHash, TransactionSubmitResponse};
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -19,6 +20,7 @@ pub struct TransactionManager {
     /// Soroban RPC client for contract invocations
     soroban_rpc: SorobanRpcClient,
     /// Configuration
+    #[allow(dead_code)]
     config: Arc<BlockchainConfig>,
 }
 
