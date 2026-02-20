@@ -687,3 +687,6 @@ impl HelloContract {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod flash_loan_test;
