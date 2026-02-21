@@ -1,4 +1,3 @@
-pub mod deposit_test;
 pub mod interest_rate_test;
 pub mod liquidate_test;
 pub mod oracle_test;
