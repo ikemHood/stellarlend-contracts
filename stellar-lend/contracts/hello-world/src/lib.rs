@@ -20,6 +20,7 @@
 //! - Emergency pause halts all operations immediately.
 
 #![allow(clippy::too_many_arguments)]
+#![allow(deprecated)]
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol};
 

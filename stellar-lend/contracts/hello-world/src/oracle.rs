@@ -16,10 +16,10 @@
 //! - Only the admin or the designated oracle address may submit price updates.
 
 #![allow(unused)]
-use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
-
 use crate::deposit::DepositDataKey;
+use crate::events::{emit_price_updated, PriceUpdatedEvent};
 use crate::risk_management::get_admin;
+use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
 /// Errors that can occur during oracle operations
 #[contracterror]
@@ -329,7 +329,17 @@ pub fn update_price_feed(
     cache_price(env, &asset, price);
 
     // Emit price update event
-    emit_price_update_event(env, &asset, price, &oracle_clone, timestamp);
+    emit_price_updated(
+        env,
+        PriceUpdatedEvent {
+            actor: caller,
+            asset: asset.clone(),
+            price,
+            decimals,
+            oracle: oracle_clone,
+            timestamp,
+        },
+    );
 
     Ok(price)
 }
@@ -497,26 +507,4 @@ pub fn configure_oracle(
     env.storage().persistent().set(&config_key, &config);
 
     Ok(())
-}
-
-/// Emit price update event
-fn emit_price_update_event(
-    env: &Env,
-    asset: &Address,
-    price: i128,
-    oracle: &Address,
-    timestamp: u64,
-) {
-    let topics = (Symbol::new(env, "price_updated"), asset.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "asset").into_val(env));
-    data.push_back(asset.clone().into_val(env));
-    data.push_back(Symbol::new(env, "price").into_val(env));
-    data.push_back(price.into_val(env));
-    data.push_back(Symbol::new(env, "oracle").into_val(env));
-    data.push_back(oracle.clone().into_val(env));
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(timestamp.into_val(env));
-
-    env.events().publish(topics, data);
 }

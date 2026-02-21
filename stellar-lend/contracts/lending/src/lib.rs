@@ -8,6 +8,7 @@
 //! interest rate and 150% minimum collateral ratio.
 
 #![no_std]
+#![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, Address, Env};
 
 mod borrow;
