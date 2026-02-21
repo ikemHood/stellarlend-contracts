@@ -1,3 +1,17 @@
+//! # Withdraw Module
+//!
+//! Handles collateral withdrawal operations for the lending protocol.
+//!
+//! This module enforces:
+//! - Sufficient collateral balance before withdrawal
+//! - Minimum collateral ratio is maintained after withdrawal (150% default)
+//! - Pause switch checks (both legacy and risk-management systems)
+//!
+//! ## Security
+//! - Withdrawals that would bring a position below the minimum collateral ratio
+//!   are rejected to prevent undercollateralization.
+//! - Tokens are transferred from the contract to the user via the token contract.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

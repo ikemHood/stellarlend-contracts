@@ -1,3 +1,20 @@
+//! # Oracle Module
+//!
+//! Manages price feeds for all protocol assets with staleness checks, deviation
+//! guards, caching, and fallback oracle support.
+//!
+//! ## Price Resolution Order
+//! 1. **Cache**: returns a cached price if the TTL has not expired.
+//! 2. **Primary feed**: reads the on-chain `PriceFeed` entry; rejects if stale.
+//! 3. **Fallback oracle**: if the primary is stale or missing, queries a
+//!    configured fallback oracle address.
+//!
+//! ## Safety
+//! - Price deviation between consecutive updates is bounded (default ±5%).
+//! - Staleness threshold defaults to 1 hour; configurable by admin.
+//! - Sanity-check bounds on min/max price are enforced on every update.
+//! - Only the admin or the designated oracle address may submit price updates.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

@@ -1,3 +1,22 @@
+//! # Cross-Asset Lending Module
+//!
+//! Extends the lending protocol with multi-asset support, allowing users to
+//! deposit collateral and borrow across different asset types simultaneously.
+//!
+//! ## Features
+//! - Per-asset configuration: collateral factor, borrow factor, reserve factor, caps
+//! - Oracle-based price feeds for cross-asset value calculation
+//! - Unified position summary with health factor across all assets
+//! - Supply and borrow cap enforcement per asset
+//!
+//! ## Health Factor
+//! Computed as `weighted_collateral_value / weighted_debt_value * 10000`.
+//! A health factor below 10,000 (1.0x) makes the position liquidatable.
+//!
+//! ## Invariants
+//! - Withdrawals and borrows are rejected if they would lower health factor below 1.0.
+//! - Prices must not be stale (> 1 hour old) for position calculations.
+
 #![allow(dead_code)]
 use soroban_sdk::{contracterror, contracttype, symbol_short, Address, Env, Map, Symbol, Vec};
 
@@ -67,18 +86,29 @@ pub enum AssetKey {
     Token(Address),
 }
 
+/// Errors that can occur during cross-asset lending operations.
 #[contracterror]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum CrossAssetError {
+    /// The specified asset has no configuration registered
     AssetNotConfigured = 1,
+    /// The asset is configured but disabled for the requested operation
     AssetDisabled = 2,
+    /// Insufficient collateral for the requested withdrawal or borrow
     InsufficientCollateral = 3,
+    /// Borrow would exceed the user's remaining borrow capacity
     ExceedsBorrowCapacity = 4,
+    /// Operation would result in a health factor below 1.0
     UnhealthyPosition = 5,
+    /// Deposit would exceed the asset's supply cap
     SupplyCapExceeded = 6,
+    /// Borrow would exceed the asset's borrow cap
     BorrowCapExceeded = 7,
+    /// Price is zero or negative
     InvalidPrice = 8,
+    /// Asset price is older than the staleness threshold (1 hour)
     PriceStale = 9,
+    /// Caller is not authorized (not admin)
     NotAuthorized = 10,
 }
 
@@ -90,6 +120,13 @@ const TOTAL_BORROWS: Symbol = symbol_short!("borrows");
 const ASSET_LIST: Symbol = symbol_short!("assets");
 const ADMIN: Symbol = symbol_short!("admin");
 
+/// Initialize the cross-asset lending module.
+///
+/// Sets the admin address. Can only be called once; subsequent calls return
+/// `NotAuthorized`.
+///
+/// # Arguments
+/// * `admin` - The admin address (must authorize the transaction)
 pub fn initialize(env: &Env, admin: Address) -> Result<(), CrossAssetError> {
     if env.storage().persistent().has(&ADMIN) {
         return Err(CrossAssetError::NotAuthorized);
@@ -114,13 +151,20 @@ fn require_admin(env: &Env) -> Result<(), CrossAssetError> {
     Ok(())
 }
 
-/// Initialize asset configuration
+/// Register a new asset with the cross-asset lending module.
+///
+/// Validates the configuration (factors in basis-point range, positive price)
+/// and appends the asset to the global asset list if not already present.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `admin` - Admin address for authorization
-/// * `asset` - Asset to configure (None for XLM)
-/// * `config` - Asset configuration parameters
+/// * `asset` - Asset to configure (`None` for native XLM)
+/// * `config` - Full asset configuration (factors, caps, price)
+///
+/// # Errors
+/// * `NotAuthorized` - Caller is not the admin
+/// * `AssetNotConfigured` - A basis-point field is out of [0, 10000]
+/// * `InvalidPrice` - Price is zero or negative
 pub fn initialize_asset(
     env: &Env,
     asset: Option<Address>,
@@ -154,18 +198,24 @@ pub fn initialize_asset(
     Ok(())
 }
 
-/// Update asset configuration parameters
+/// Selectively update an existing asset's configuration.
+///
+/// Only the provided `Some` fields are updated; `None` fields keep their
+/// current values. Factor fields are validated to be in [0, 10000] bps.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `admin` - Admin address for authorization
-/// * `asset` - Asset to update (None for XLM)
-/// * `collateral_factor` - Optional new collateral factor
-/// * `borrow_factor` - Optional new borrow factor
+/// * `asset` - Asset to update (`None` for XLM)
+/// * `collateral_factor` - Optional new collateral factor (basis points)
+/// * `borrow_factor` - Optional new borrow factor (basis points)
 /// * `max_supply` - Optional new supply cap
 /// * `max_borrow` - Optional new borrow cap
-/// * `can_collateralize` - Optional collateral enablement
-/// * `can_borrow` - Optional borrow enablement
+/// * `can_collateralize` - Optional flag to enable/disable as collateral
+/// * `can_borrow` - Optional flag to enable/disable borrowing
+///
+/// # Errors
+/// * `NotAuthorized` - Caller is not the admin
+/// * `AssetNotConfigured` - Asset has not been initialized or factor out of range
 #[allow(clippy::too_many_arguments)]
 pub fn update_asset_config(
     env: &Env,
@@ -221,13 +271,19 @@ pub fn update_asset_config(
     Ok(())
 }
 
-/// Update asset price (oracle integration point)
+/// Update the oracle price for an asset.
+///
+/// Records the new price and the current ledger timestamp for staleness checks.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `admin` - Admin address for authorization
-/// * `asset` - Asset to update price for (None for XLM)
-/// * `price` - New price in base units (7 decimals)
+/// * `asset` - Asset to update price for (`None` for XLM)
+/// * `price` - New price in base units (7 decimals, must be > 0)
+///
+/// # Errors
+/// * `NotAuthorized` - Caller is not the admin
+/// * `InvalidPrice` - Price is zero or negative
+/// * `AssetNotConfigured` - Asset has not been initialized
 pub fn update_asset_price(
     env: &Env,
     asset: Option<Address>,
@@ -305,14 +361,21 @@ fn set_user_asset_position(
     env.storage().persistent().set(&USER_POSITIONS, &positions);
 }
 
-/// Calculate unified position summary across all assets
+/// Calculate a unified position summary across all registered assets.
+///
+/// Iterates over all configured assets, aggregates collateral and debt values
+/// weighted by their respective factors, and computes the health factor.
+/// Prices older than 1 hour are rejected.
 ///
 /// # Arguments
 /// * `env` - The contract environment
 /// * `user` - User address
 ///
 /// # Returns
-/// Comprehensive position summary
+/// [`UserPositionSummary`] with health factor, liquidation status, and borrow capacity.
+///
+/// # Errors
+/// * `PriceStale` - Any asset with a non-zero position has a price older than 1 hour
 pub fn get_user_position_summary(
     env: &Env,
     user: &Address,
@@ -398,16 +461,24 @@ pub fn get_user_position_summary(
     })
 }
 
-/// Cross-asset deposit operation
+/// Deposit collateral for a specific asset.
+///
+/// Requires user authorization. Validates the asset is enabled for collateral
+/// and that the deposit does not exceed the supply cap.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `user` - User depositing collateral
-/// * `asset` - Asset to deposit (None for XLM)
+/// * `user` - User depositing collateral (must authorize)
+/// * `asset` - Asset to deposit (`None` for XLM)
 /// * `amount` - Amount to deposit
 ///
 /// # Returns
-/// Updated asset position
+/// Updated [`AssetPosition`] after the deposit.
+///
+/// # Errors
+/// * `AssetNotConfigured` - Asset is not registered
+/// * `AssetDisabled` - Asset is not enabled for collateral
+/// * `SupplyCapExceeded` - Deposit would exceed the asset's supply cap
 pub fn cross_asset_deposit(
     env: &Env,
     user: Address,
@@ -441,16 +512,25 @@ pub fn cross_asset_deposit(
     Ok(position)
 }
 
-/// Cross-asset withdraw operation
+/// Withdraw collateral for a specific asset.
+///
+/// Requires user authorization. Checks that the user has sufficient collateral
+/// and that the withdrawal does not bring the health factor below 1.0. If the
+/// health check fails, the withdrawal is rolled back.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `user` - User withdrawing collateral
-/// * `asset` - Asset to withdraw (None for XLM)
+/// * `user` - User withdrawing collateral (must authorize)
+/// * `asset` - Asset to withdraw (`None` for XLM)
 /// * `amount` - Amount to withdraw
 ///
 /// # Returns
-/// Updated asset position
+/// Updated [`AssetPosition`] after the withdrawal.
+///
+/// # Errors
+/// * `InsufficientCollateral` - User's collateral balance is below `amount`
+/// * `UnhealthyPosition` - Withdrawal would drop health factor below 1.0
+/// * `PriceStale` - Stale price prevents health factor calculation
 pub fn cross_asset_withdraw(
     env: &Env,
     user: Address,
@@ -485,16 +565,27 @@ pub fn cross_asset_withdraw(
     Ok(position)
 }
 
-/// Cross-asset borrow operation
+/// Borrow a specific asset against cross-asset collateral.
+///
+/// Requires user authorization. Validates the asset is enabled for borrowing,
+/// checks the borrow cap, and verifies the post-borrow health factor stays
+/// above 1.0. If the health check fails, the borrow is rolled back.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `user` - User borrowing
-/// * `asset` - Asset to borrow (None for XLM)
+/// * `user` - User borrowing (must authorize)
+/// * `asset` - Asset to borrow (`None` for XLM)
 /// * `amount` - Amount to borrow
 ///
 /// # Returns
-/// Updated asset position
+/// Updated [`AssetPosition`] after the borrow.
+///
+/// # Errors
+/// * `AssetNotConfigured` - Asset is not registered
+/// * `AssetDisabled` - Asset is not enabled for borrowing
+/// * `BorrowCapExceeded` - Borrow would exceed the asset's borrow cap
+/// * `ExceedsBorrowCapacity` - Health factor would drop below 1.0
+/// * `PriceStale` - Stale price prevents health factor calculation
 pub fn cross_asset_borrow(
     env: &Env,
     user: Address,
@@ -537,16 +628,19 @@ pub fn cross_asset_borrow(
     Ok(position)
 }
 
-/// Cross-asset repay operation
+/// Repay debt for a specific asset.
+///
+/// Requires user authorization. Repayment is capped at the total outstanding
+/// debt (principal + accrued interest). Interest is paid first, then principal.
 ///
 /// # Arguments
 /// * `env` - The contract environment
-/// * `user` - User repaying debt
-/// * `asset` - Asset to repay (None for XLM)
-/// * `amount` - Amount to repay
+/// * `user` - User repaying debt (must authorize)
+/// * `asset` - Asset to repay (`None` for XLM)
+/// * `amount` - Amount to repay (capped at total debt)
 ///
 /// # Returns
-/// Updated asset position
+/// Updated [`AssetPosition`] after the repayment.
 pub fn cross_asset_repay(
     env: &Env,
     user: Address,
@@ -581,7 +675,9 @@ pub fn cross_asset_repay(
     Ok(position)
 }
 
-/// Get list of all configured assets
+/// Return the list of all registered asset keys.
+///
+/// Returns an empty vector if no assets have been configured.
 pub fn get_asset_list(env: &Env) -> Vec<AssetKey> {
     env.storage()
         .persistent()
@@ -589,7 +685,17 @@ pub fn get_asset_list(env: &Env) -> Vec<AssetKey> {
         .unwrap_or(Vec::new(env))
 }
 
-/// Get configuration for a specific asset
+/// Look up the configuration for a specific asset by address.
+///
+/// # Arguments
+/// * `env` - The contract environment
+/// * `asset` - Asset address (`None` for native XLM)
+///
+/// # Returns
+/// The [`AssetConfig`] for the requested asset.
+///
+/// # Errors
+/// * `AssetNotConfigured` - No configuration exists for this asset
 pub fn get_asset_config_by_address(
     env: &Env,
     asset: Option<Address>,
@@ -693,6 +799,7 @@ impl UserAssetKey {
 }
 
 impl AssetKey {
+    /// Convert an `Option<Address>` into an `AssetKey` (`None` → `Native`).
     pub fn from_option(asset: Option<Address>) -> Self {
         match asset {
             Some(addr) => AssetKey::Token(addr),
@@ -700,6 +807,7 @@ impl AssetKey {
         }
     }
 
+    /// Convert back to `Option<Address>` (`Native` → `None`).
     pub fn to_option(&self) -> Option<Address> {
         match self {
             AssetKey::Native => None,

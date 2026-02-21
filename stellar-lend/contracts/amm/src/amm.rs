@@ -1,3 +1,17 @@
+//! # AMM Core Implementation
+//!
+//! Contains the core logic for AMM operations including swap execution,
+//! liquidity management, protocol registration, and callback validation.
+//!
+//! ## Architecture
+//! The AMM module acts as a router that delegates to registered AMM protocol
+//! contracts. Each protocol has its own configuration including fee tiers,
+//! supported token pairs, and swap limits.
+//!
+//! ## Callback Validation
+//! Uses nonce-based replay protection: each user has an incrementing nonce
+//! stored on-chain. Callbacks must present the expected nonce to be accepted.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

@@ -1,3 +1,12 @@
+//! # Events Module
+//!
+//! Defines standardized event types for the lending protocol and provides
+//! convenience functions for publishing them to the Soroban ledger.
+//!
+//! All core operations (deposit, withdrawal, borrow, repay) emit events through
+//! this module, enabling off-chain indexers and analytics services to track
+//! protocol activity.
+
 use soroban_sdk::{contracttype, Address, Env, Symbol};
 
 /// A standardized event structure for all protocol actions.
@@ -79,18 +88,23 @@ fn log_event(env: &Env, event: Event) {
 }
 
 // Convenience functions for logging specific events
+
+/// Publish a deposit event to the ledger.
 pub fn log_deposit(env: &Env, event: DepositEvent) {
     log_event(env, Event::Deposit(event));
 }
 
+/// Publish a withdrawal event to the ledger.
 pub fn log_withdrawal(env: &Env, event: WithdrawalEvent) {
     log_event(env, Event::Withdrawal(event));
 }
 
+/// Publish a borrow event to the ledger.
 pub fn log_borrow(env: &Env, event: BorrowEvent) {
     log_event(env, Event::Borrow(event));
 }
 
+/// Publish a repay event to the ledger.
 pub fn log_repay(env: &Env, event: RepayEvent) {
     log_event(env, Event::Repay(event));
 }

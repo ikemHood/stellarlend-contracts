@@ -1,3 +1,27 @@
+//! # Deposit Module
+//!
+//! Handles collateral deposit operations for the lending protocol.
+//!
+//! This module manages:
+//! - Depositing assets (both token contracts and native XLM) as collateral
+//! - Tracking user collateral balances and positions
+//! - Updating user and protocol analytics on each deposit
+//! - Emitting events for off-chain indexing
+//!
+//! ## Storage Layout
+//! - `CollateralBalance(user)` — per-user collateral amount
+//! - `Position(user)` — per-user position (collateral, debt, interest)
+//! - `AssetParams(asset)` — per-asset deposit parameters
+//! - `PauseSwitches` — operation pause flags
+//! - `ProtocolAnalytics` — aggregate protocol metrics
+//! - `UserAnalytics(user)` — per-user activity metrics
+//! - `ActivityLog` — bounded activity history (max 1000 entries)
+//!
+//! ## Invariants
+//! - Deposit amount must be strictly positive.
+//! - Deposits are rejected when the protocol or deposit operation is paused.
+//! - Token transfers use `transfer_from`, requiring prior user approval.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

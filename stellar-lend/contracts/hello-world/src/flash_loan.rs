@@ -1,3 +1,23 @@
+//! # Flash Loan Module
+//!
+//! Provides uncollateralized flash loan functionality for the lending protocol.
+//!
+//! Flash loans allow users to borrow assets without collateral, provided the loan
+//! (principal + fee) is repaid within the same transaction via a callback contract.
+//!
+//! ## Fee Structure
+//! - Default fee: 9 basis points (0.09%) of the borrowed amount.
+//! - Fee is configurable by the admin.
+//!
+//! ## Reentrancy Protection
+//! An active flash loan is recorded per (user, asset) pair. A second flash loan
+//! for the same pair is rejected until the first is repaid, preventing reentrancy.
+//!
+//! ## Invariants
+//! - The borrowed amount must be within configured min/max limits.
+//! - The contract must have sufficient liquidity to fund the loan.
+//! - Repayment must cover principal + fee in full.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
