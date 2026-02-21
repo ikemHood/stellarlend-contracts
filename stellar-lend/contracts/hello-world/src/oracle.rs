@@ -19,7 +19,6 @@
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
 use crate::deposit::DepositDataKey;
-use crate::risk_management::get_admin;
 
 /// Errors that can occur during oracle operations
 #[contracterror]
@@ -255,10 +254,11 @@ pub fn update_price_feed(
         }
     }
 
-    // Validate caller (must be admin or the oracle itself)
-    let is_admin = get_admin(env).map(|admin| admin == caller).unwrap_or(false);
+    // Validate caller (must be admin, oracle role, or the oracle itself)
+    let has_privilege =
+        crate::admin::require_role_or_admin(env, &caller, Symbol::new(env, "oracle_admin")).is_ok();
 
-    if !is_admin && caller != oracle {
+    if !has_privilege && caller != oracle {
         return Err(OracleError::Unauthorized);
     }
 
@@ -376,11 +376,7 @@ pub fn set_fallback_oracle(
     fallback_oracle: Address,
 ) -> Result<(), OracleError> {
     // Check authorization
-    let admin = get_admin(env).ok_or(OracleError::Unauthorized)?;
-
-    if caller != admin {
-        return Err(OracleError::Unauthorized);
-    }
+    crate::admin::require_admin(env, &caller).map_err(|_| OracleError::Unauthorized)?;
 
     // Validate oracle address
     if fallback_oracle == env.current_contract_address() {
@@ -408,11 +404,7 @@ pub fn configure_oracle(
     config: OracleConfig,
 ) -> Result<(), OracleError> {
     // Check authorization
-    let admin = get_admin(env).ok_or(OracleError::Unauthorized)?;
-
-    if caller != admin {
-        return Err(OracleError::Unauthorized);
-    }
+    crate::admin::require_admin(env, &caller).map_err(|_| OracleError::Unauthorized)?;
 
     // Validate configuration
     if config.max_deviation_bps <= 0 || config.max_deviation_bps > 10000 {

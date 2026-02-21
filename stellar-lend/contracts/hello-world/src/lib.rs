@@ -23,6 +23,7 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol};
 
+mod admin;
 mod borrow;
 mod deposit;
 mod events;
@@ -104,12 +105,52 @@ impl HelloContract {
     /// # Returns
     /// Returns Ok(()) on success
     pub fn initialize(env: Env, admin: Address) -> Result<(), RiskManagementError> {
+        // Prevent double initialization
+        if crate::admin::has_admin(&env) {
+            return Err(RiskManagementError::Unauthorized); // or a specific error
+        }
+
+        crate::admin::set_admin(&env, admin.clone(), None)
+            .map_err(|_| RiskManagementError::Unauthorized)?;
         initialize_risk_management(&env, admin.clone())?;
         // Initialize interest rate config with default parameters
         initialize_interest_rate_config(&env, admin.clone())
             .map_err(|_| RiskManagementError::Unauthorized)?;
         // initialize_governance(&env, admin).map_err(|_| RiskManagementError::Unauthorized)?;
         Ok(())
+    }
+
+    /// Transfer super admin rights
+    ///
+    /// # Arguments
+    /// * `caller` - The current admin
+    /// * `new_admin` - The new admin
+    pub fn transfer_admin(
+        env: Env,
+        caller: Address,
+        new_admin: Address,
+    ) -> Result<(), crate::admin::AdminError> {
+        crate::admin::set_admin(&env, new_admin, Some(caller))
+    }
+
+    /// Grant a role to an address (admin only)
+    pub fn grant_role(
+        env: Env,
+        caller: Address,
+        role: Symbol,
+        account: Address,
+    ) -> Result<(), crate::admin::AdminError> {
+        crate::admin::grant_role(&env, caller, role, account)
+    }
+
+    /// Revoke a role from an address (admin only)
+    pub fn revoke_role(
+        env: Env,
+        caller: Address,
+        role: Symbol,
+        account: Address,
+    ) -> Result<(), crate::admin::AdminError> {
+        crate::admin::revoke_role(&env, caller, role, account)
     }
 
     /// Deposit collateral into the protocol
