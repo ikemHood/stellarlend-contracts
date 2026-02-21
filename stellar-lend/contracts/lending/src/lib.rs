@@ -1,6 +1,6 @@
 #![no_std]
 #![allow(deprecated)]
-use soroban_sdk::{contract, contractimpl, Address, Env,};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, Env};
 
 mod borrow;
 mod pause;
@@ -17,6 +17,9 @@ use deposit::{
     DepositCollateral, DepositError,
 };
 
+mod flash_loan;
+use flash_loan::{flash_loan, set_flash_loan_fee_bps, FlashLoanError};
+
 #[cfg(test)]
 mod borrow_test;
 #[cfg(test)]
@@ -24,6 +27,9 @@ mod pause_test;
 
 #[cfg(test)]
 mod deposit_test;
+
+#[cfg(test)]
+mod flash_loan_test;
 
 #[contract]
 pub struct LendingContract;
@@ -180,5 +186,23 @@ impl LendingContract {
     /// Get protocol admin
     pub fn get_admin(env: Env) -> Option<Address> {
         get_admin(&env)
+    }
+
+    /// Execute a flash loan
+    pub fn flash_loan(
+        env: Env,
+        receiver: Address,
+        asset: Address,
+        amount: i128,
+        params: Bytes,
+    ) -> Result<(), FlashLoanError> {
+        flash_loan(&env, receiver, asset, amount, params)
+    }
+
+    /// Set the flash loan fee in basis points (admin only)
+    pub fn set_flash_loan_fee_bps(env: Env, fee_bps: i128) -> Result<(), FlashLoanError> {
+        let current_admin = get_admin(&env).ok_or(FlashLoanError::Unauthorized)?;
+        current_admin.require_auth();
+        set_flash_loan_fee_bps(&env, fee_bps)
     }
 }
