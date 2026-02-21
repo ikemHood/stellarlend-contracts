@@ -1,3 +1,22 @@
+//! # Risk Management Module
+//!
+//! Provides configurable risk parameters and pause controls for the lending protocol.
+//!
+//! ## Risk Parameters (all in basis points)
+//! - **Minimum collateral ratio** (default 110%): below this, new borrows are rejected
+//! - **Liquidation threshold** (default 105%): below this, positions can be liquidated
+//! - **Close factor** (default 50%): max percentage of debt liquidatable per transaction
+//! - **Liquidation incentive** (default 10%): bonus awarded to liquidators
+//!
+//! ## Pause Controls
+//! - Per-operation pause switches (deposit, withdraw, borrow, repay, liquidate)
+//! - Global emergency pause that halts all operations immediately
+//!
+//! ## Safety
+//! - Parameter changes are limited to ±10% per update to prevent drastic shifts.
+//! - Min collateral ratio must always be ≥ liquidation threshold.
+//! - Only the admin address can modify risk parameters.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

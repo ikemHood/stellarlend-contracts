@@ -1,3 +1,19 @@
+//! # Repay Module
+//!
+//! Handles debt repayment operations for the lending protocol.
+//!
+//! Supports both partial and full repayments. Interest is accrued before
+//! repayment is applied. Repayment is allocated interest-first, then principal.
+//!
+//! ## Repayment Order
+//! 1. Accrued interest is paid first.
+//! 2. Any remaining repayment amount reduces the principal debt.
+//!
+//! ## Invariants
+//! - Repay amount must be strictly positive.
+//! - User must have outstanding debt to repay.
+//! - Token transfers use `transfer_from`, requiring prior user approval.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

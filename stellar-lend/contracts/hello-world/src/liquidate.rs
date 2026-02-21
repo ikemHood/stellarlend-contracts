@@ -1,3 +1,25 @@
+//! # Liquidation Module
+//!
+//! Handles liquidation of undercollateralized positions in the lending protocol.
+//!
+//! Liquidators can repay a portion of a borrower's debt in exchange for their
+//! collateral plus a liquidation incentive (bonus). This module uses the risk
+//! management system to determine:
+//! - Whether a position is eligible for liquidation (below liquidation threshold)
+//! - The maximum liquidatable amount (controlled by the close factor)
+//! - The liquidation incentive awarded to the liquidator
+//!
+//! ## Cross-Asset Liquidation
+//! When debt and collateral are different assets, oracle prices are used to
+//! convert between asset values. A default price of 1.0 (8 decimals) is used
+//! as fallback when oracle prices are not configured.
+//!
+//! ## Invariants
+//! - Only undercollateralized positions (below liquidation threshold) can be liquidated.
+//! - Liquidation amount cannot exceed the close factor percentage of total debt.
+//! - Collateral seized cannot exceed the borrower's available collateral.
+//! - Interest is accrued on the borrower's position before liquidation.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 

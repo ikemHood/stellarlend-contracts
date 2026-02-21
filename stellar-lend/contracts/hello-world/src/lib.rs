@@ -1,3 +1,24 @@
+//! # StellarLend Core Contract
+//!
+//! The main entrypoint for the StellarLend lending protocol on Soroban.
+//!
+//! This contract orchestrates all protocol operations including:
+//! - **Collateral management**: deposit and withdraw collateral assets
+//! - **Borrowing**: borrow assets against deposited collateral
+//! - **Repayment**: repay debt (partial or full) with interest
+//! - **Liquidation**: liquidate undercollateralized positions
+//! - **Risk management**: configurable risk parameters and pause controls
+//! - **Interest rates**: dynamic kink-based interest rate model
+//! - **Oracle integration**: price feeds with staleness checks and fallbacks
+//! - **Flash loans**: uncollateralized single-transaction loans
+//! - **Analytics**: protocol and user reporting
+//!
+//! ## Invariants
+//! - All positions must maintain the minimum collateral ratio or face liquidation.
+//! - Interest accrues continuously based on protocol utilization.
+//! - Only the admin can modify risk parameters, oracle config, and pause switches.
+//! - Emergency pause halts all operations immediately.
+
 #![allow(clippy::too_many_arguments)]
 #![no_std]
 use soroban_sdk::{contract, contractimpl, Address, Env, Map, String, Symbol};
@@ -54,11 +75,19 @@ use interest_rate::{
     InterestRateError,
 };
 
+/// The StellarLend core contract.
+///
+/// Provides the public API for all lending protocol operations. Each method
+/// delegates to the corresponding module implementation and converts internal
+/// errors into panics for Soroban's contract-call semantics.
 #[contract]
 pub struct HelloContract;
 
 #[contractimpl]
 impl HelloContract {
+    /// Health-check endpoint.
+    ///
+    /// Returns the string `"Hello"` to verify the contract is deployed and callable.
     pub fn hello(env: Env) -> String {
         String::from_str(&env, "Hello")
     }
@@ -398,14 +427,48 @@ impl HelloContract {
         borrow_asset(&env, user, asset, amount).unwrap_or_else(|e| panic!("Borrow error: {:?}", e))
     }
 
+    /// Generate a comprehensive protocol report.
+    ///
+    /// Aggregates TVL, utilization, average borrow rate, and user/transaction counts
+    /// into a single [`ProtocolReport`] snapshot.
+    ///
+    /// # Returns
+    /// A `ProtocolReport` containing current protocol metrics and timestamp.
+    ///
+    /// # Errors
+    /// Returns `AnalyticsError` if protocol data is not initialized or computation overflows.
     pub fn get_protocol_report(env: Env) -> Result<ProtocolReport, AnalyticsError> {
         generate_protocol_report(&env)
     }
 
+    /// Generate a comprehensive report for a specific user.
+    ///
+    /// Includes the user's position, health factor, risk level, activity history,
+    /// and cumulative transaction metrics.
+    ///
+    /// # Arguments
+    /// * `user` - The address of the user to report on
+    ///
+    /// # Returns
+    /// A `UserReport` with the user's metrics, position, and recent activities.
+    ///
+    /// # Errors
+    /// Returns `AnalyticsError::DataNotFound` if the user has no recorded activity.
     pub fn get_user_report(env: Env, user: Address) -> Result<UserReport, AnalyticsError> {
         generate_user_report(&env, &user)
     }
 
+    /// Retrieve recent protocol activity entries.
+    ///
+    /// Returns a paginated list of the most recent protocol activities in
+    /// reverse chronological order.
+    ///
+    /// # Arguments
+    /// * `limit` - Maximum number of entries to return
+    /// * `offset` - Number of entries to skip from the most recent
+    ///
+    /// # Returns
+    /// A vector of `ActivityEntry` records.
     pub fn get_recent_activity(
         env: Env,
         limit: u32,
@@ -414,6 +477,18 @@ impl HelloContract {
         get_recent_activity(&env, limit, offset)
     }
 
+    /// Retrieve activity entries for a specific user.
+    ///
+    /// Returns a paginated list of the user's activities in reverse
+    /// chronological order.
+    ///
+    /// # Arguments
+    /// * `user` - The address of the user
+    /// * `limit` - Maximum number of entries to return
+    /// * `offset` - Number of entries to skip from the most recent
+    ///
+    /// # Returns
+    /// A vector of `ActivityEntry` records for the specified user.
     pub fn get_user_activity(
         env: Env,
         user: Address,
@@ -687,3 +762,6 @@ impl HelloContract {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod flash_loan_test;
