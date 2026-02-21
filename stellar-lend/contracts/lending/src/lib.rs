@@ -1,21 +1,20 @@
 #![no_std]
 #![allow(deprecated)]
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env,};
 
 mod borrow;
 mod pause;
 
 use borrow::{
     borrow, get_admin, get_user_collateral, get_user_debt, initialize_borrow_settings, set_admin,
-    BorrowError, CollateralPosition, DebtPosition,
+    BorrowCollateral, BorrowError, DebtPosition,
 };
 use pause::{is_paused, set_pause, PauseType};
 
 mod deposit;
 use deposit::{
     deposit, get_user_collateral as get_deposit_collateral, initialize_deposit_settings,
-    set_paused as set_deposit_paused, CollateralPosition as DepositCollateralPosition,
-    DepositError,
+    DepositCollateral, DepositError,
 };
 
 #[cfg(test)]
@@ -81,21 +80,6 @@ impl LendingContract {
         Ok(())
     }
 
-    /// Deposit collateral
-    pub fn deposit(
-        env: Env,
-        user: Address,
-        _asset: Address,
-        _amount: i128,
-    ) -> Result<(), BorrowError> {
-        user.require_auth();
-        if is_paused(&env, PauseType::Deposit) {
-            return Err(BorrowError::ProtocolPaused);
-        }
-        // Stub implementation
-        Ok(())
-    }
-
     /// Repay borrowed assets
     pub fn repay(
         env: Env,
@@ -149,7 +133,7 @@ impl LendingContract {
     }
 
     /// Get user's collateral position
-    pub fn get_user_collateral(env: Env, user: Address) -> CollateralPosition {
+    pub fn get_user_collateral(env: Env, user: Address) -> BorrowCollateral {
         get_user_collateral(&env, &user)
     }
 
@@ -178,7 +162,10 @@ impl LendingContract {
     /// Set deposit pause state (admin only)
     /// Deprecated: use set_pause instead
     pub fn set_deposit_paused(env: Env, paused: bool) -> Result<(), DepositError> {
-        set_deposit_paused(&env, paused)
+        env.storage()
+            .persistent()
+            .set(&pause::PauseDataKey::State(PauseType::Deposit), &paused);
+        Ok(())
     }
 
     /// Get user's deposit collateral position
@@ -186,7 +173,7 @@ impl LendingContract {
         env: Env,
         user: Address,
         asset: Address,
-    ) -> DepositCollateralPosition {
+    ) -> DepositCollateral {
         get_deposit_collateral(&env, &user, &asset)
     }
 

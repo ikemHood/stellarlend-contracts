@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Env, Symbol};
+use soroban_sdk::{contractevent, contracttype, Address, Env};
 
 /// Types of operations that can be paused.
 #[contracttype]
@@ -28,7 +28,7 @@ pub enum PauseDataKey {
 }
 
 /// Event data emitted on pause state change.
-#[contracttype]
+#[contractevent]
 #[derive(Clone, Debug)]
 pub struct PauseEvent {
     /// Operation type affected
@@ -53,13 +53,12 @@ pub fn set_pause(env: &Env, admin: Address, pause_type: PauseType, paused: bool)
         .set(&PauseDataKey::State(pause_type), &paused);
 
     // Emit event
-    let event = PauseEvent {
+    PauseEvent {
         pause_type,
         paused,
         admin,
-    };
-    env.events()
-        .publish((Symbol::new(env, "pause_changed"),), event);
+    }
+    .publish(env);
 }
 
 /// Check if a specific operation is paused

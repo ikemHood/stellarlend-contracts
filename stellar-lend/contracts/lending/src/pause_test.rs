@@ -1,7 +1,8 @@
 use super::*;
+use crate::deposit::DepositError;
 use soroban_sdk::{
     testutils::{Address as _, Events},
-    vec, Address, Env, IntoVal, Symbol,
+    Address, Env, Symbol, TryFromVal,
 };
 
 #[test]
@@ -62,7 +63,7 @@ fn test_global_pause() {
     );
     assert_eq!(
         client.try_deposit(&user, &asset, &10_000),
-        Err(Ok(BorrowError::ProtocolPaused))
+        Err(Ok(DepositError::DepositPaused))
     );
     assert_eq!(
         client.try_repay(&user, &asset, &10_000),
@@ -122,7 +123,7 @@ fn test_all_granular_pauses() {
     client.set_pause(&admin, &PauseType::Deposit, &true);
     assert_eq!(
         client.try_deposit(&user, &asset, &10_000),
-        Err(Ok(BorrowError::ProtocolPaused))
+        Err(Ok(DepositError::DepositPaused))
     );
     client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
     client.set_pause(&admin, &PauseType::Deposit, &false);
@@ -168,8 +169,7 @@ fn test_pause_events() {
     let events = env.events().all();
     let last_event = events.last().unwrap();
 
-    assert_eq!(
-        last_event.1,
-        vec![&env, Symbol::new(&env, "pause_changed").into_val(&env)]
-    );
+    assert_eq!(last_event.0, contract_id);
+    let topic: Symbol = Symbol::try_from_val(&env, &last_event.1.get(0).unwrap()).unwrap();
+    assert_eq!(topic, Symbol::new(&env, "pause_event"));
 }
