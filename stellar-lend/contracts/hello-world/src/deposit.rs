@@ -518,7 +518,6 @@ pub fn emit_user_activity_tracked_event(
     );
 }
 
-// Define risk management storage keys locally to avoid dependency
 #[contracttype]
 enum RiskDataKey {
     RiskConfig,
