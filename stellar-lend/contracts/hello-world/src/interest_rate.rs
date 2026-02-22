@@ -1,3 +1,26 @@
+//! # Interest Rate Module
+//!
+//! Implements a kink-based (piecewise linear) interest rate model for the lending protocol.
+//!
+//! ## Rate Model
+//! The borrow rate is determined by protocol utilization (borrows / deposits):
+//! - **Below kink** (default 80%): `rate = base_rate + (utilization / kink) * multiplier`
+//! - **Above kink**: `rate = base_rate + multiplier + ((util - kink) / (1 - kink)) * jump_multiplier`
+//!
+//! The supply rate is derived as: `supply_rate = borrow_rate - spread`
+//!
+//! ## Configuration (defaults)
+//! - Base rate: 1% APY
+//! - Kink utilization: 80%
+//! - Multiplier: 20% (slope below kink)
+//! - Jump multiplier: 100% (slope above kink)
+//! - Rate floor: 0.5%, Rate ceiling: 100%
+//! - Spread: 2%
+//!
+//! ## Emergency Adjustment
+//! Admin can apply a positive or negative emergency adjustment to the calculated rate,
+//! bounded to ±100%.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal};
 

@@ -1,60 +1,99 @@
-use soroban_sdk::{contracterror, contracttype, Address, Env, Symbol};
+//! # Borrow Implementation (Simplified Lending)
+//!
+//! Core borrow logic for the simplified lending contract. Handles collateral
+//! validation, debt tracking, interest calculation, and pause controls.
+//!
+//! ## Interest Model
+//! Uses a fixed 5% APY simple interest model:
+//! `interest = principal * 500bps * time_elapsed / seconds_per_year`
+//!
+//! ## Collateral Requirements
+//! Minimum collateral ratio is 150% (15,000 basis points).
 
-/// Errors that can occur during borrow operations
+use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
+
+/// Errors that can occur during borrow operations.
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum BorrowError {
+    /// Collateral amount does not meet the 150% minimum ratio
     InsufficientCollateral = 1,
+    /// Total protocol debt would exceed the configured debt ceiling
     DebtCeilingReached = 2,
+    /// Borrow operations are currently paused
     ProtocolPaused = 3,
+    /// Borrow or collateral amount is zero or negative
     InvalidAmount = 4,
+    /// Arithmetic overflow during calculation
     Overflow = 5,
+    /// Caller is not authorized for this operation
     Unauthorized = 6,
+    /// The requested asset is not supported for borrowing
     AssetNotSupported = 7,
+    /// Borrow amount is below the configured minimum
     BelowMinimumBorrow = 8,
 }
 
-/// Storage keys for borrow-related data
+/// Storage keys for borrow-related data.
 #[contracttype]
 #[derive(Clone)]
 pub enum BorrowDataKey {
+    /// Per-user debt position
     UserDebt(Address),
+    /// Per-user collateral position
     UserCollateral(Address),
+    /// Aggregate protocol debt
     TotalDebt,
+    /// Maximum total debt allowed
     DebtCeiling,
+    /// Interest rate configuration
     InterestRate,
+    /// Collateral ratio configuration
     CollateralRatio,
+    /// Minimum borrow amount
     MinBorrowAmount,
+    /// Protocol pause flag
     Paused,
 }
 
-/// User debt position
+/// User debt position tracking.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DebtPosition {
+    /// Principal amount borrowed
     pub borrowed_amount: i128,
+    /// Cumulative interest accrued
     pub interest_accrued: i128,
+    /// Timestamp of last interest accrual
     pub last_update: u64,
+    /// Address of the borrowed asset
     pub asset: Address,
 }
 
-/// User collateral position
+/// User collateral position tracking.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CollateralPosition {
+    /// Amount of collateral deposited
     pub amount: i128,
+    /// Address of the collateral asset
     pub asset: Address,
 }
 
-/// Borrow event data
-#[contracttype]
+/// Event data emitted on each borrow operation.
+#[contractevent]
 #[derive(Clone, Debug)]
 pub struct BorrowEvent {
+    /// Borrower's address
     pub user: Address,
+    /// Borrowed asset address
     pub asset: Address,
+    /// Amount borrowed
     pub amount: i128,
+    /// Collateral amount provided
     pub collateral: i128,
+    /// Ledger timestamp of the borrow
     pub timestamp: u64,
 }
 
@@ -250,14 +289,14 @@ fn is_paused(env: &Env) -> bool {
 }
 
 fn emit_borrow_event(env: &Env, user: Address, asset: Address, amount: i128, collateral: i128) {
-    let event = BorrowEvent {
+    BorrowEvent {
         user,
         asset,
         amount,
         collateral,
         timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish((Symbol::new(env, "borrow"),), event);
+    }
+    .publish(env);
 }
 
 /// Initialize borrow settings (admin only)

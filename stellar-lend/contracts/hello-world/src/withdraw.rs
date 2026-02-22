@@ -1,3 +1,17 @@
+//! # Withdraw Module
+//!
+//! Handles collateral withdrawal operations for the lending protocol.
+//!
+//! This module enforces:
+//! - Sufficient collateral balance before withdrawal
+//! - Minimum collateral ratio is maintained after withdrawal (150% default)
+//! - Pause switch checks (both legacy and risk-management systems)
+//!
+//! ## Security
+//! - Withdrawals that would bring a position below the minimum collateral ratio
+//!   are rejected to prevent undercollateralization.
+//! - Tokens are transferred from the contract to the user via the token contract.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
@@ -6,7 +20,7 @@ use crate::deposit::{
     emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
     AssetParams, DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
 };
-use crate::events::{log_withdrawal, WithdrawalEvent};
+use crate::events::{emit_withdrawal, WithdrawalEvent};
 
 /// Errors that can occur during withdraw operations
 #[contracterror]
@@ -283,7 +297,7 @@ pub fn withdraw_collateral(
     })?;
 
     // Emit withdraw event
-    log_withdrawal(
+    emit_withdrawal(
         env,
         WithdrawalEvent {
             user: user.clone(),

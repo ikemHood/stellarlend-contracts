@@ -1,8 +1,25 @@
-#![allow(unused)]
-use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
+//! # Oracle Module
+//!
+//! Manages price feeds for all protocol assets with staleness checks, deviation
+//! guards, caching, and fallback oracle support.
+//!
+//! ## Price Resolution Order
+//! 1. **Cache**: returns a cached price if the TTL has not expired.
+//! 2. **Primary feed**: reads the on-chain `PriceFeed` entry; rejects if stale.
+//! 3. **Fallback oracle**: if the primary is stale or missing, queries a
+//!    configured fallback oracle address.
+//!
+//! ## Safety
+//! - Price deviation between consecutive updates is bounded (default ±5%).
+//! - Staleness threshold defaults to 1 hour; configurable by admin.
+//! - Sanity-check bounds on min/max price are enforced on every update.
+//! - Only the admin or the designated oracle address may submit price updates.
 
+#![allow(unused)]
 use crate::deposit::DepositDataKey;
+use crate::events::{emit_price_updated, PriceUpdatedEvent};
 use crate::risk_management::get_admin;
+use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
 /// Errors that can occur during oracle operations
 #[contracterror]
@@ -36,6 +53,10 @@ pub enum OracleError {
 pub enum OracleDataKey {
     /// Price feeds: Map<Address, PriceFeed>
     PriceFeed(Address),
+    /// Fallback price feeds: Map<Address, PriceFeed>
+    FallbackFeed(Address),
+    /// Primary oracle addresses: Map<Address, Address>
+    PrimaryOracle(Address),
     /// Fallback oracle addresses: Map<Address, Address>
     FallbackOracle(Address),
     /// Price cache: Map<Address, CachedPrice>
@@ -113,6 +134,22 @@ fn get_oracle_config(env: &Env) -> OracleConfig {
         .persistent()
         .get::<OracleDataKey, OracleConfig>(&config_key)
         .unwrap_or_else(get_default_config)
+}
+
+/// Get primary oracle for an asset
+fn get_primary_oracle(env: &Env, asset: &Address) -> Option<Address> {
+    let key = OracleDataKey::PrimaryOracle(asset.clone());
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, Address>(&key)
+}
+
+/// Get fallback oracle for an asset
+fn get_fallback_oracle(env: &Env, asset: &Address) -> Option<Address> {
+    let key = OracleDataKey::FallbackOracle(asset.clone());
+    env.storage()
+        .persistent()
+        .get::<OracleDataKey, Address>(&key)
 }
 
 /// Validate price against sanity checks
@@ -238,9 +275,19 @@ pub fn update_price_feed(
         }
     }
 
-    // Validate caller (must be admin or the oracle itself)
+    // Validate caller authorization
     let is_admin = get_admin(env).map(|admin| admin == caller).unwrap_or(false);
+    let primary = get_primary_oracle(env, &asset);
+    let fallback = get_fallback_oracle(env, &asset);
 
+    let is_primary = primary.map(|p| p == caller).unwrap_or(false);
+    let is_fallback = fallback.map(|f| f == caller).unwrap_or(false);
+
+    if !is_admin && !is_primary && !is_fallback {
+        return Err(OracleError::Unauthorized);
+    }
+
+    // Ensure oracle address matches caller if not admin
     if !is_admin && caller != oracle {
         return Err(OracleError::Unauthorized);
     }
@@ -248,8 +295,13 @@ pub fn update_price_feed(
     // Validate price
     validate_price(env, price)?;
 
-    // Get current price feed
-    let feed_key = OracleDataKey::PriceFeed(asset.clone());
+    // Determine target storage key and get current feed for deviation check
+    let feed_key = if is_fallback && !is_primary && !is_admin {
+        OracleDataKey::FallbackFeed(asset.clone())
+    } else {
+        OracleDataKey::PriceFeed(asset.clone())
+    };
+
     let current_feed = env
         .storage()
         .persistent()
@@ -277,7 +329,17 @@ pub fn update_price_feed(
     cache_price(env, &asset, price);
 
     // Emit price update event
-    emit_price_update_event(env, &asset, price, &oracle_clone, timestamp);
+    emit_price_updated(
+        env,
+        PriceUpdatedEvent {
+            actor: caller,
+            asset: asset.clone(),
+            price,
+            decimals,
+            oracle: oracle_clone,
+            timestamp,
+        },
+    );
 
     Ok(price)
 }
@@ -306,7 +368,12 @@ pub fn get_price(env: &Env, asset: &Address) -> Result<i128, OracleError> {
         // Check if price is stale
         if is_price_stale(env, feed.last_updated) {
             // Try fallback oracle
-            return get_fallback_price(env, asset);
+            if let Ok(fallback_price) = get_fallback_price(env, asset) {
+                return Ok(fallback_price);
+            }
+            // If fallback failed or not configured, but we have a stale price,
+            // we could return it in emergency, but here we enforce staleness
+            return Err(OracleError::StalePrice);
         }
 
         // Cache the price
@@ -315,7 +382,7 @@ pub fn get_price(env: &Env, asset: &Address) -> Result<i128, OracleError> {
         return Ok(feed.price);
     }
 
-    // No price feed found, try fallback
+    // No primary price feed found, try fallback
     get_fallback_price(env, asset)
 }
 
@@ -327,14 +394,14 @@ fn get_fallback_price(env: &Env, asset: &Address) -> Result<i128, OracleError> {
         .persistent()
         .get::<OracleDataKey, Address>(&fallback_key)
     {
-        // Get price from fallback oracle feed
-        let feed_key = OracleDataKey::PriceFeed(asset.clone());
+        // Get price from fallback oracle feed slot
+        let feed_key = OracleDataKey::FallbackFeed(asset.clone());
         if let Some(feed) = env
             .storage()
             .persistent()
             .get::<OracleDataKey, PriceFeed>(&feed_key)
         {
-            // Check if fallback price is valid
+            // Check if fallback price is valid and from authorized oracle
             if feed.oracle == fallback_oracle && !is_price_stale(env, feed.last_updated) {
                 cache_price(env, asset, feed.price);
                 return Ok(feed.price);
@@ -343,6 +410,35 @@ fn get_fallback_price(env: &Env, asset: &Address) -> Result<i128, OracleError> {
     }
 
     Err(OracleError::FallbackNotConfigured)
+}
+
+/// Set primary oracle for an asset
+///
+/// # Arguments
+/// * `env` - The Soroban environment
+/// * `caller` - The address calling this function (must be admin)
+/// * `asset` - The asset address
+/// * `primary_oracle` - The primary oracle address
+pub fn set_primary_oracle(
+    env: &Env,
+    caller: Address,
+    asset: Address,
+    primary_oracle: Address,
+) -> Result<(), OracleError> {
+    // Check authorization
+    let admin = get_admin(env).ok_or(OracleError::Unauthorized)?;
+
+    if caller != admin {
+        return Err(OracleError::Unauthorized);
+    }
+
+    // Set primary oracle
+    let primary_key = OracleDataKey::PrimaryOracle(asset);
+    env.storage()
+        .persistent()
+        .set(&primary_key, &primary_oracle);
+
+    Ok(())
 }
 
 /// Set fallback oracle for an asset
@@ -411,26 +507,4 @@ pub fn configure_oracle(
     env.storage().persistent().set(&config_key, &config);
 
     Ok(())
-}
-
-/// Emit price update event
-fn emit_price_update_event(
-    env: &Env,
-    asset: &Address,
-    price: i128,
-    oracle: &Address,
-    timestamp: u64,
-) {
-    let topics = (Symbol::new(env, "price_updated"), asset.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "asset").into_val(env));
-    data.push_back(asset.clone().into_val(env));
-    data.push_back(Symbol::new(env, "price").into_val(env));
-    data.push_back(price.into_val(env));
-    data.push_back(Symbol::new(env, "oracle").into_val(env));
-    data.push_back(oracle.clone().into_val(env));
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(timestamp.into_val(env));
-
-    env.events().publish(topics, data);
 }

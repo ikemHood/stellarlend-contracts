@@ -1,4 +1,14 @@
+//! # StellarLend Simplified Lending Contract
+//!
+//! A streamlined lending contract that provides basic borrow functionality
+//! with collateral requirements, debt ceilings, and interest accrual.
+//!
+//! This contract is a simplified version of the main lending protocol,
+//! suitable for single-asset lending scenarios with a fixed 5% APY
+//! interest rate and 150% minimum collateral ratio.
+
 #![no_std]
+#![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, Address, Env};
 
 mod borrow;
@@ -7,17 +17,18 @@ use borrow::{
     BorrowError, CollateralPosition, DebtPosition,
 };
 
-mod cross_asset;
-use cross_asset::{
-    borrow_asset, deposit_collateral_asset, get_cross_position_summary, repay_asset,
-    set_asset_params, withdraw_asset, AssetParams, CrossAssetError, PositionSummary,
+mod deposit;
+use deposit::{
+    deposit, get_user_collateral as get_deposit_collateral, initialize_deposit_settings,
+    set_paused as set_deposit_paused, CollateralPosition as DepositCollateralPosition,
+    DepositError,
 };
 
 #[cfg(test)]
 mod borrow_test;
 
 #[cfg(test)]
-mod cross_asset_test;
+mod deposit_test;
 
 #[contract]
 pub struct LendingContract;
@@ -62,58 +73,73 @@ impl LendingContract {
         get_user_collateral(&env, &user)
     }
 
-    pub fn set_asset_params(
-        env: Env,
-        asset: Address,
-        params: AssetParams,
-    ) {
-        set_asset_params(&env, asset, params).unwrap();
-    }
-
-    pub fn deposit_collateral_asset(
-        env: Env,
-        user: Address,
-        asset: Address,
-        amount: i128,
-    ) {
-        deposit_collateral_asset(&env, user, asset, amount).unwrap();
-    }
-
-    pub fn borrow_asset(
-        env: Env,
-        user: Address,
-        asset: Address,
-        amount: i128,
-    ) {
-        borrow_asset(&env, user, asset, amount).unwrap();
-    }
-
-    pub fn repay_asset(
+    /// Deposit collateral into the protocol
+    ///
+    /// Allows users to deposit assets as collateral. Supports configured collateral
+    /// assets (XLM, USDC, etc.). Validates amounts and emits events.
+    ///
+    /// # Arguments
+    /// * `user` - The depositor's address (must authorize)
+    /// * `asset` - The collateral asset address
+    /// * `amount` - The amount to deposit
+    ///
+    /// # Returns
+    /// Returns the updated collateral balance
+    ///
+    /// # Errors
+    /// - `InvalidAmount` - Amount is zero, negative, or below minimum
+    /// - `DepositPaused` - Deposit operations are paused
+    /// - `ExceedsDepositCap` - Protocol deposit cap would be exceeded
+    /// - `Overflow` - Arithmetic overflow occurred
+    pub fn deposit(
         env: Env,
         user: Address,
         asset: Address,
         amount: i128,
-    ) {
-        repay_asset(&env, user, asset, amount).unwrap();
+    ) -> Result<i128, DepositError> {
+        deposit(&env, user, asset, amount)
     }
 
-    pub fn withdraw_asset(
+    /// Initialize deposit settings (admin only)
+    ///
+    /// Sets up the protocol's deposit cap and minimum deposit amount.
+    ///
+    /// # Arguments
+    /// * `deposit_cap` - Maximum total deposits allowed
+    /// * `min_deposit_amount` - Minimum amount that can be deposited
+    pub fn initialize_deposit_settings(
+        env: Env,
+        deposit_cap: i128,
+        min_deposit_amount: i128,
+    ) -> Result<(), DepositError> {
+        initialize_deposit_settings(&env, deposit_cap, min_deposit_amount)
+    }
+
+    /// Set deposit pause state (admin only)
+    ///
+    /// Pauses or unpauses the deposit functionality.
+    ///
+    /// # Arguments
+    /// * `paused` - True to pause, false to unpause
+    pub fn set_deposit_paused(env: Env, paused: bool) -> Result<(), DepositError> {
+        set_deposit_paused(&env, paused)
+    }
+
+    /// Get user's deposit collateral position
+    ///
+    /// Returns the user's current deposit collateral position.
+    ///
+    /// # Arguments
+    /// * `user` - The user's address
+    /// * `asset` - The asset address
+    ///
+    /// # Returns
+    /// DepositCollateralPosition with amount, asset, and last deposit time
+    pub fn get_user_collateral_deposit(
         env: Env,
         user: Address,
         asset: Address,
-        amount: i128,
-    ) {
-        withdraw_asset(&env, user, asset, amount).unwrap();
-    }
-
-    pub fn get_cross_position_summary(
-        env: Env,
-        user: Address,
-    ) -> PositionSummary {
-        get_cross_position_summary(&env, user).unwrap()
-    }
-
-    pub fn initialize_admin(env: Env, admin: Address) {
-        cross_asset::initialize_admin(&env, admin);
+    ) -> DepositCollateralPosition {
+        get_deposit_collateral(&env, &user, &asset)
     }
 }
