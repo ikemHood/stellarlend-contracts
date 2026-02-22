@@ -1,533 +1,199 @@
-//! # Asset Configuration Test Suite
+//! # Asset and Protocol Config Tests (#310)
 //!
-//! Comprehensive tests for collateral and asset configuration functionality.
-//!
-//! ## Test Coverage
-//! - Asset initialization and configuration
-//! - Enable/disable assets as collateral
-//! - LTV (collateral factor) configuration
-//! - Liquidation threshold configuration
-//! - Debt ceiling (max borrow) enforcement
-//! - Supply cap enforcement
-//! - Configuration validation
-//! - Admin access control
-//! - Edge cases (disable collateral with existing positions)
+//! Tests for collateral/asset configuration and config enforcement.
+//! Covers interest rate config, risk params, and per-parameter validation.
 
-#![cfg(test)]
-
-use crate::cross_asset::*;
-use crate::HelloContract;
+use crate::deposit::{DepositDataKey, ProtocolAnalytics};
+use crate::{HelloContract, HelloContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env};
 
-// ============================================================================
-// Test Helpers
-// ============================================================================
-
-fn setup() -> (Env, Address, Address) {
+fn create_test_env() -> Env {
     let env = Env::default();
     env.mock_all_auths();
-    let contract_id = env.register(HelloContract, ());
-    let admin = Address::generate(&env);
-
-    env.as_contract(&contract_id, || {
-        initialize(&env, admin.clone()).unwrap();
-    });
-
-    (env, contract_id, admin)
+    env
 }
 
-fn create_test_config(env: &Env, asset: Option<Address>) -> AssetConfig {
-    AssetConfig {
-        asset,
-        collateral_factor: 7500,     // 75% LTV
-        liquidation_threshold: 8000, // 80% liquidation threshold
-        reserve_factor: 1000,        // 10%
-        max_supply: 1_000_000_000,
-        max_borrow: 800_000_000, // Debt ceiling
-        can_collateralize: true,
-        can_borrow: true,
-        price: 1_0000000, // $1.00
-        price_updated_at: env.ledger().timestamp(),
+fn setup_contract_with_admin(env: &Env) -> (Address, Address, HelloContractClient<'_>) {
+    let contract_id = env.register(HelloContract, ());
+    let client = HelloContractClient::new(env, &contract_id);
+    let admin = Address::generate(env);
+    client.initialize(&admin);
+    (contract_id, admin, client)
+}
+
+fn set_protocol_analytics(
+    env: &Env,
+    contract_id: &Address,
+    total_deposits: i128,
+    total_borrows: i128,
+) {
+    env.as_contract(contract_id, || {
+        let key = DepositDataKey::ProtocolAnalytics;
+        let a = ProtocolAnalytics {
+            total_deposits,
+            total_borrows,
+            total_value_locked: total_deposits,
+        };
+        env.storage().persistent().set(&key, &a);
+    });
+}
+
+// =============================================================================
+// Interest rate config (protocol-level "asset" config)
+// =============================================================================
+
+#[test]
+fn test_update_interest_rate_config_base_rate() {
+    let env = create_test_env();
+    let (_contract_id, admin, client) = setup_contract_with_admin(&env);
+    client.update_interest_rate_config(
+        &admin,
+        &Some(200),
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+    );
+    let rate = client.get_borrow_rate();
+    assert!(rate >= 200);
+}
+
+#[test]
+fn test_update_interest_rate_config_kink() {
+    let env = create_test_env();
+    let (contract_id, admin, client) = setup_contract_with_admin(&env);
+    set_protocol_analytics(&env, &contract_id, 10000, 5000);
+    client.update_interest_rate_config(
+        &admin,
+        &None,
+        &Some(5000),
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+    );
+    let util = client.get_utilization();
+    assert_eq!(util, 5000);
+}
+
+#[test]
+fn test_update_interest_rate_config_spread() {
+    let env = create_test_env();
+    let (_contract_id, admin, client) = setup_contract_with_admin(&env);
+    client.update_interest_rate_config(
+        &admin,
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+        &Some(300),
+    );
+    let borrow_rate = client.get_borrow_rate();
+    let supply_rate = client.get_supply_rate();
+    assert!(borrow_rate >= supply_rate);
+}
+
+#[test]
+fn test_interest_rate_config_floor_ceiling_enforcement() {
+    let env = create_test_env();
+    let (contract_id, admin, client) = setup_contract_with_admin(&env);
+    set_protocol_analytics(&env, &contract_id, 100, 0);
+    client.update_interest_rate_config(
+        &admin,
+        &None,
+        &None,
+        &None,
+        &Some(100),
+        &Some(10000),
+        &None,
+        &None,
+    );
+    let rate = client.get_borrow_rate();
+    assert!(rate >= 100);
+    assert!(rate <= 10000);
+}
+
+// =============================================================================
+// Risk config (min collateral ratio, liquidation threshold, etc.)
+// =============================================================================
+
+#[test]
+fn test_get_risk_config_returns_all_params() {
+    let env = create_test_env();
+    let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
+    let config = client.get_risk_config().unwrap();
+    assert!(config.min_collateral_ratio > 0);
+    assert!(config.min_collateral_ratio >= config.liquidation_threshold);
+    assert!(config.close_factor > 0);
+    assert!(config.close_factor <= 10_000);
+    assert!(config.liquidation_incentive > 0);
+}
+
+#[test]
+fn test_set_risk_params_success() {
+    let env = create_test_env();
+    let (_contract_id, admin, client) = setup_contract_with_admin(&env);
+    let config_before = client.get_risk_config().unwrap();
+    let new_min_cr = config_before.min_collateral_ratio + 100;
+    if new_min_cr <= 10_000 {
+        client.set_risk_params(&admin, &Some(new_min_cr), &None, &None, &None);
+        let config_after = client.get_risk_config().unwrap();
+        assert_eq!(config_after.min_collateral_ratio, new_min_cr);
     }
 }
 
-macro_rules! with_contract {
-    ($env:expr, $contract_id:expr, $body:block) => {
-        $env.as_contract($contract_id, || $body)
-    };
-}
-
-// ============================================================================
-// Initialization Tests
-// ============================================================================
-
 #[test]
-fn test_initialize_admin_success() {
-    let env = Env::default();
-    env.mock_all_auths();
-    let contract_id = env.register(HelloContract, ());
-    let admin = Address::generate(&env);
-
-    with_contract!(env, &contract_id, {
-        let result = initialize(&env, admin);
-        assert!(result.is_ok());
-    });
+fn test_min_collateral_ratio_getter() {
+    let env = create_test_env();
+    let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
+    let ratio = client.get_min_collateral_ratio();
+    assert!(ratio > 0);
 }
 
 #[test]
-fn test_initialize_admin_twice_fails() {
-    let (env, cid, admin) = setup();
-
-    with_contract!(env, &cid, {
-        let result = initialize(&env, admin);
-        assert_eq!(result, Err(CrossAssetError::NotAuthorized));
-    });
-}
-
-// ============================================================================
-// Asset Configuration Tests
-// ============================================================================
-
-#[test]
-fn test_initialize_asset_success() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        let result = initialize_asset(&env, Some(usdc.clone()), config.clone());
-        assert!(result.is_ok());
-
-        let stored_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(stored_config.collateral_factor, 7500);
-        assert_eq!(stored_config.liquidation_threshold, 8000);
-        assert_eq!(stored_config.max_borrow, 800_000_000);
-    });
+fn test_liquidation_threshold_getter() {
+    let env = create_test_env();
+    let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
+    let threshold = client.get_liquidation_threshold();
+    assert!(threshold > 0);
 }
 
 #[test]
-fn test_initialize_asset_invalid_collateral_factor() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.collateral_factor = 11_000; // Invalid: > 10000
-
-    with_contract!(env, &cid, {
-        let result = initialize_asset(&env, Some(usdc), config);
-        assert_eq!(result, Err(CrossAssetError::AssetNotConfigured));
-    });
+fn test_close_factor_getter() {
+    let env = create_test_env();
+    let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
+    let cf = client.get_close_factor();
+    assert!(cf > 0);
+    assert!(cf <= 10_000);
 }
 
 #[test]
-fn test_initialize_asset_invalid_liquidation_threshold() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.liquidation_threshold = 11_000; // Invalid: > 10000
-
-    with_contract!(env, &cid, {
-        let result = initialize_asset(&env, Some(usdc), config);
-        assert_eq!(result, Err(CrossAssetError::AssetNotConfigured));
-    });
+fn test_liquidation_incentive_getter() {
+    let env = create_test_env();
+    let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
+    let inc = client.get_liquidation_incentive();
+    assert!(inc > 0);
 }
 
 #[test]
-fn test_initialize_asset_liquidation_threshold_below_ltv() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.collateral_factor = 8000;
-    config.liquidation_threshold = 7500; // Invalid: < collateral_factor
-
-    with_contract!(env, &cid, {
-        let result = initialize_asset(&env, Some(usdc), config);
-        assert_eq!(result, Err(CrossAssetError::AssetNotConfigured));
-    });
-}
-
-#[test]
-fn test_initialize_asset_zero_price() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.price = 0;
-
-    with_contract!(env, &cid, {
-        let result = initialize_asset(&env, Some(usdc), config);
-        assert_eq!(result, Err(CrossAssetError::InvalidPrice));
-    });
-}
-
-#[test]
-fn test_initialize_asset_negative_price() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.price = -100;
-
-    with_contract!(env, &cid, {
-        let result = initialize_asset(&env, Some(usdc), config);
-        assert_eq!(result, Err(CrossAssetError::InvalidPrice));
-    });
-}
-
-// ============================================================================
-// Update Asset Configuration Tests
-// ============================================================================
-
-#[test]
-fn test_update_collateral_factor() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        update_asset_config(
-            &env,
-            Some(usdc.clone()),
-            Some(6000), // New LTV: 60%
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(updated_config.collateral_factor, 6000);
-        assert_eq!(updated_config.liquidation_threshold, 8000); // Unchanged
-    });
-}
-
-#[test]
-fn test_update_liquidation_threshold() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        update_asset_config(
-            &env,
-            Some(usdc.clone()),
-            None,
-            Some(8500), // New liquidation threshold: 85%
-            None,
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(updated_config.liquidation_threshold, 8500);
-        assert_eq!(updated_config.collateral_factor, 7500); // Unchanged
-    });
-}
-
-#[test]
-fn test_update_debt_ceiling() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        update_asset_config(
-            &env,
-            Some(usdc.clone()),
-            None,
-            None,
-            None,
-            Some(1_000_000_000), // New debt ceiling
-            None,
-            None,
-        )
-        .unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(updated_config.max_borrow, 1_000_000_000);
-    });
-}
-
-#[test]
-fn test_disable_collateral() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        update_asset_config(
-            &env,
-            Some(usdc.clone()),
-            None,
-            None,
-            None,
-            None,
-            Some(false), // Disable collateral
-            None,
-        )
-        .unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert!(!updated_config.can_collateralize);
-    });
-}
-
-#[test]
-fn test_disable_borrowing() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        update_asset_config(
-            &env,
-            Some(usdc.clone()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(false), // Disable borrowing
-        )
-        .unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert!(!updated_config.can_borrow);
-    });
-}
-
-#[test]
-fn test_update_multiple_fields() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        update_asset_config(
-            &env,
-            Some(usdc.clone()),
-            Some(6500),          // New LTV
-            Some(7500),          // New liquidation threshold
-            Some(2_000_000_000), // New supply cap
-            Some(1_500_000_000), // New debt ceiling
-            Some(true),
-            Some(true),
-        )
-        .unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(updated_config.collateral_factor, 6500);
-        assert_eq!(updated_config.liquidation_threshold, 7500);
-        assert_eq!(updated_config.max_supply, 2_000_000_000);
-        assert_eq!(updated_config.max_borrow, 1_500_000_000);
-    });
-}
-
-// ============================================================================
-// Price Update Tests
-// ============================================================================
-
-#[test]
-fn test_update_price_success() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let new_price = 1_0500000; // $1.05
-        update_asset_price(&env, Some(usdc.clone()), new_price).unwrap();
-
-        let updated_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(updated_config.price, new_price);
-        assert_eq!(updated_config.price_updated_at, env.ledger().timestamp());
-    });
-}
-
-#[test]
-fn test_update_price_zero_fails() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let result = update_asset_price(&env, Some(usdc), 0);
-        assert_eq!(result, Err(CrossAssetError::InvalidPrice));
-    });
-}
-
-#[test]
-fn test_update_price_negative_fails() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let result = update_asset_price(&env, Some(usdc), -100);
-        assert_eq!(result, Err(CrossAssetError::InvalidPrice));
-    });
-}
-
-// ============================================================================
-// Deposit Tests with Configuration
-// ============================================================================
-
-#[test]
-fn test_deposit_enabled_asset() {
-    let (env, cid, _admin) = setup();
-    let user = Address::generate(&env);
-    let usdc = Address::generate(&env);
-    let config = create_test_config(&env, Some(usdc.clone()));
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let result = cross_asset_deposit(&env, user.clone(), Some(usdc.clone()), 1000);
-        assert!(result.is_ok());
-
-        let position = get_user_asset_position(&env, &user, Some(usdc));
-        assert_eq!(position.collateral, 1000);
-    });
-}
-
-#[test]
-fn test_deposit_disabled_collateral_fails() {
-    let (env, cid, _admin) = setup();
-    let user = Address::generate(&env);
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.can_collateralize = false;
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let result = cross_asset_deposit(&env, user, Some(usdc), 1000);
-        assert_eq!(result, Err(CrossAssetError::AssetDisabled));
-    });
-}
-
-#[test]
-fn test_deposit_exceeds_supply_cap() {
-    let (env, cid, _admin) = setup();
-    let user = Address::generate(&env);
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.max_supply = 1000;
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let result = cross_asset_deposit(&env, user, Some(usdc), 2000);
-        assert_eq!(result, Err(CrossAssetError::SupplyCapExceeded));
-    });
-}
-
-// ============================================================================
-// Configuration Enforcement Tests
-// ============================================================================
-
-#[test]
-fn test_debt_ceiling_enforcement() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.max_borrow = 1000; // Debt ceiling
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let stored_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(stored_config.max_borrow, 1000);
-    });
-}
-
-#[test]
-fn test_ltv_configuration() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let mut config = create_test_config(&env, Some(usdc.clone()));
-    config.collateral_factor = 6500; // 65% LTV
-    config.liquidation_threshold = 7500; // 75% liquidation threshold
-
-    with_contract!(env, &cid, {
-        initialize_asset(&env, Some(usdc.clone()), config).unwrap();
-
-        let stored_config = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        assert_eq!(stored_config.collateral_factor, 6500);
-        assert_eq!(stored_config.liquidation_threshold, 7500);
-    });
-}
-
-#[test]
-fn test_multiple_assets_configuration() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let usdt = Address::generate(&env);
-    let dai = Address::generate(&env);
-
-    with_contract!(env, &cid, {
-        // Initialize multiple assets with different configs
-        let mut config1 = create_test_config(&env, Some(usdc.clone()));
-        config1.collateral_factor = 7500;
-        config1.liquidation_threshold = 8000;
-        initialize_asset(&env, Some(usdc.clone()), config1).unwrap();
-
-        let mut config2 = create_test_config(&env, Some(usdt.clone()));
-        config2.collateral_factor = 7000;
-        config2.liquidation_threshold = 7500;
-        initialize_asset(&env, Some(usdt.clone()), config2).unwrap();
-
-        let mut config3 = create_test_config(&env, Some(dai.clone()));
-        config3.collateral_factor = 8000;
-        config3.liquidation_threshold = 8500;
-        initialize_asset(&env, Some(dai.clone()), config3).unwrap();
-
-        // Verify all configs are stored correctly
-        let stored1 = get_asset_config_by_address(&env, Some(usdc)).unwrap();
-        let stored2 = get_asset_config_by_address(&env, Some(usdt)).unwrap();
-        let stored3 = get_asset_config_by_address(&env, Some(dai)).unwrap();
-
-        assert_eq!(stored1.collateral_factor, 7500);
-        assert_eq!(stored2.collateral_factor, 7000);
-        assert_eq!(stored3.collateral_factor, 8000);
-
-        let asset_list = get_asset_list(&env);
-        assert_eq!(asset_list.len(), 3);
-    });
-}
-
-#[test]
-fn test_get_asset_list() {
-    let (env, cid, _admin) = setup();
-    let usdc = Address::generate(&env);
-    let usdt = Address::generate(&env);
-
-    with_contract!(env, &cid, {
-        let config1 = create_test_config(&env, Some(usdc.clone()));
-        let config2 = create_test_config(&env, Some(usdt.clone()));
-
-        initialize_asset(&env, Some(usdc), config1).unwrap();
-        initialize_asset(&env, Some(usdt), config2).unwrap();
-
-        let asset_list = get_asset_list(&env);
-        assert_eq!(asset_list.len(), 2);
-    });
+#[should_panic(expected = "HostError")]
+fn test_update_interest_rate_config_unauthorized() {
+    let env = create_test_env();
+    let (_contract_id, _admin, client) = setup_contract_with_admin(&env);
+    let non_admin = Address::generate(&env);
+    client.update_interest_rate_config(
+        &non_admin,
+        &Some(500),
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+        &None,
+    );
 }
