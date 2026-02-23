@@ -33,42 +33,47 @@ pub fn borrow(
 
 ## Error Types
 
-| Error | Description |
-|-------|-------------|
+| Error                    | Description                                           |
+| ------------------------ | ----------------------------------------------------- |
 | `InsufficientCollateral` | Collateral ratio is below the minimum required (150%) |
-| `DebtCeilingReached` | Protocol's total debt ceiling would be exceeded |
-| `ProtocolPaused` | Borrow operations are currently paused |
-| `InvalidAmount` | Amount or collateral is zero or negative |
-| `BelowMinimumBorrow` | Borrow amount is below the minimum threshold |
-| `Overflow` | Arithmetic overflow occurred during calculation |
-| `Unauthorized` | User did not authorize the transaction |
-| `AssetNotSupported` | The specified asset is not supported |
+| `DebtCeilingReached`     | Protocol's total debt ceiling would be exceeded       |
+| `ProtocolPaused`         | Borrow operations are currently paused                |
+| `InvalidAmount`          | Amount or collateral is zero or negative              |
+| `BelowMinimumBorrow`     | Borrow amount is below the minimum threshold          |
+| `Overflow`               | Arithmetic overflow occurred during calculation       |
+| `Unauthorized`           | User did not authorize the transaction                |
+| `AssetNotSupported`      | The specified asset is not supported                  |
 
 ## Security Assumptions
 
 ### Collateral Ratio
+
 - **Minimum Ratio**: 150% (15000 basis points)
 - Users must provide collateral worth at least 1.5x the borrowed amount
 - Ratio is calculated as: `(collateral_amount * 10000) / borrow_amount`
 - Prevents under-collateralized positions that could lead to protocol insolvency
 
 ### Interest Calculation
+
 - **Annual Rate**: 5% (500 basis points)
 - Interest accrues continuously based on time elapsed
 - Formula: `borrowed_amount * interest_rate * time_elapsed / (10000 * seconds_per_year)`
 - Uses saturating arithmetic to prevent overflow
 
 ### Overflow Protection
+
 - All arithmetic operations use checked methods (`checked_add`, `checked_mul`, etc.)
 - Returns `BorrowError::Overflow` if any calculation would overflow
 - Prevents integer overflow attacks and ensures data integrity
 
 ### Debt Ceiling
+
 - Protocol enforces a maximum total debt limit
 - Each borrow checks if new total debt would exceed ceiling
 - Protects protocol from excessive leverage
 
 ### Pause Mechanism
+
 - Admin can pause all borrow operations
 - Useful for emergency situations or upgrades
 - Does not affect existing positions, only new borrows
@@ -108,18 +113,18 @@ println!("Collateral: {}", collateral.amount);
 ### Initialize Protocol
 
 ```rust
-// Set debt ceiling to 1 billion and minimum borrow to 1,000
-contract.initialize_borrow_settings(1_000_000_000, 1_000)?;
+// Set admin, debt ceiling to 1 billion, and minimum borrow to 1,000
+contract.initialize(&admin, 1_000_000_000, 1_000)?;
 ```
 
-### Pause/Unpause
+### Pause/Unpause (Granular)
 
 ```rust
-// Pause borrowing
-contract.set_paused(true)?;
+// Pause borrowing specifically
+contract.set_pause(&admin, PauseType::Borrow, true)?;
 
 // Resume borrowing
-contract.set_paused(false)?;
+contract.set_pause(&admin, PauseType::Borrow, false)?;
 ```
 
 ## Data Structures
@@ -202,6 +207,7 @@ Comprehensive tests cover:
 - ✅ Overflow protection
 
 Run tests with:
+
 ```bash
 cargo test
 ```

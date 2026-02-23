@@ -53,6 +53,8 @@ pub enum RiskManagementError {
     Overflow = 11,
     /// Action requires governance approval
     GovernanceRequired = 12,
+    /// Contract has already been initialized
+    AlreadyInitialized = 13,
 }
 /// Storage keys for risk management data
 #[contracttype]

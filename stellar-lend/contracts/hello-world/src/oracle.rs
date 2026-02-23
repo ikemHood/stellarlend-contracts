@@ -325,6 +325,13 @@ pub fn update_price_feed(
     // Update storage
     env.storage().persistent().set(&feed_key, &new_feed);
 
+    // When admin submits a price, register the oracle address as the primary oracle
+    // for the asset so subsequent calls from that oracle are authorized.
+    if is_admin {
+        let primary_key = OracleDataKey::PrimaryOracle(asset.clone());
+        env.storage().persistent().set(&primary_key, &oracle);
+    }
+
     // Update cache
     cache_price(env, &asset, price);
 

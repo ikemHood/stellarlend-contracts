@@ -1,4 +1,5 @@
-use soroban_sdk::{contracterror, contracttype, Address, Env, Symbol};
+use crate::pause::{self, PauseType};
+use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
 
 /// Errors that can occur during deposit operations
 #[contracterror]
@@ -15,25 +16,25 @@ pub enum DepositError {
 /// Storage keys for deposit-related data
 #[contracttype]
 #[derive(Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum DepositDataKey {
     UserCollateral(Address),
-    TotalDeposits,
-    DepositCap,
-    MinDepositAmount,
-    Paused,
+    TotalAmount,
+    CapAmount,
+    MinAmount,
 }
 
-/// User collateral position
+/// User deposit position
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub struct CollateralPosition {
+pub struct DepositCollateral {
     pub amount: i128,
     pub asset: Address,
     pub last_deposit_time: u64,
 }
 
 /// Deposit event data
-#[contracttype]
+#[contractevent]
 #[derive(Clone, Debug)]
 pub struct DepositEvent {
     pub user: Address,
@@ -61,7 +62,7 @@ pub fn deposit(
 ) -> Result<i128, DepositError> {
     user.require_auth();
 
-    if is_paused(env) {
+    if pause::is_paused(env, PauseType::Deposit) {
         return Err(DepositError::DepositPaused);
     }
 
@@ -84,7 +85,7 @@ pub fn deposit(
         return Err(DepositError::ExceedsDepositCap);
     }
 
-    let mut position = get_collateral_position(env, &user, &asset);
+    let mut position = get_deposit_position(env, &user, &asset);
     position.amount = position
         .amount
         .checked_add(amount)
@@ -92,7 +93,7 @@ pub fn deposit(
     position.last_deposit_time = env.ledger().timestamp();
     position.asset = asset.clone();
 
-    save_collateral_position(env, &user, &position);
+    save_deposit_position(env, &user, &position);
     set_total_deposits(env, new_total);
     emit_deposit_event(env, user, asset, amount, position.amount);
 
@@ -107,41 +108,29 @@ pub fn initialize_deposit_settings(
 ) -> Result<(), DepositError> {
     env.storage()
         .persistent()
-        .set(&DepositDataKey::DepositCap, &deposit_cap);
+        .set(&DepositDataKey::CapAmount, &deposit_cap);
     env.storage()
         .persistent()
-        .set(&DepositDataKey::MinDepositAmount, &min_deposit_amount);
-    env.storage()
-        .persistent()
-        .set(&DepositDataKey::Paused, &false);
+        .set(&DepositDataKey::MinAmount, &min_deposit_amount);
     Ok(())
 }
 
-/// Set deposit pause state
-pub fn set_paused(env: &Env, paused: bool) -> Result<(), DepositError> {
-    env.storage()
-        .persistent()
-        .set(&DepositDataKey::Paused, &paused);
-    Ok(())
+pub fn get_user_collateral(env: &Env, user: &Address, asset: &Address) -> DepositCollateral {
+    get_deposit_position(env, user, asset)
 }
 
-/// Get user's collateral position
-pub fn get_user_collateral(env: &Env, user: &Address, asset: &Address) -> CollateralPosition {
-    get_collateral_position(env, user, asset)
-}
-
-fn get_collateral_position(env: &Env, user: &Address, asset: &Address) -> CollateralPosition {
+fn get_deposit_position(env: &Env, user: &Address, asset: &Address) -> DepositCollateral {
     env.storage()
         .persistent()
         .get(&DepositDataKey::UserCollateral(user.clone()))
-        .unwrap_or(CollateralPosition {
+        .unwrap_or(DepositCollateral {
             amount: 0,
             asset: asset.clone(),
             last_deposit_time: env.ledger().timestamp(),
         })
 }
 
-fn save_collateral_position(env: &Env, user: &Address, position: &CollateralPosition) {
+fn save_deposit_position(env: &Env, user: &Address, position: &DepositCollateral) {
     env.storage()
         .persistent()
         .set(&DepositDataKey::UserCollateral(user.clone()), position);
@@ -150,44 +139,37 @@ fn save_collateral_position(env: &Env, user: &Address, position: &CollateralPosi
 fn get_total_deposits(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::TotalDeposits)
+        .get(&DepositDataKey::TotalAmount)
         .unwrap_or(0)
 }
 
 fn set_total_deposits(env: &Env, amount: i128) {
     env.storage()
         .persistent()
-        .set(&DepositDataKey::TotalDeposits, &amount);
+        .set(&DepositDataKey::TotalAmount, &amount);
 }
 
 fn get_deposit_cap(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::DepositCap)
+        .get(&DepositDataKey::CapAmount)
         .unwrap_or(i128::MAX)
 }
 
 fn get_min_deposit_amount(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&DepositDataKey::MinDepositAmount)
+        .get(&DepositDataKey::MinAmount)
         .unwrap_or(0)
 }
 
-fn is_paused(env: &Env) -> bool {
-    env.storage()
-        .persistent()
-        .get(&DepositDataKey::Paused)
-        .unwrap_or(false)
-}
-
 fn emit_deposit_event(env: &Env, user: Address, asset: Address, amount: i128, new_balance: i128) {
-    let event = DepositEvent {
+    DepositEvent {
         user,
         asset,
         amount,
         new_balance,
         timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish((Symbol::new(env, "deposit"),), event);
+    }
+    .publish(env);
 }
