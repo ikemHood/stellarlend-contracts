@@ -1,4 +1,27 @@
+//! # Liquidation Module
+//!
+//! Handles liquidation of undercollateralized positions in the lending protocol.
+//!
+//! Liquidators can repay a portion of a borrower's debt in exchange for their
+//! collateral plus a liquidation incentive (bonus). This module uses the risk
+//! management system to determine:
+//! - Whether a position is eligible for liquidation (below liquidation threshold)
+//! - The maximum liquidatable amount (controlled by the close factor)
+//! - The liquidation incentive awarded to the liquidator
+//!
+//! ## Cross-Asset Liquidation
+//! When debt and collateral are different assets, oracle prices are used to
+//! convert between asset values. A default price of 1.0 (8 decimals) is used
+//! as fallback when oracle prices are not configured.
+//!
+//! ## Invariants
+//! - Only undercollateralized positions (below liquidation threshold) can be liquidated.
+//! - Liquidation amount cannot exceed the close factor percentage of total debt.
+//! - Collateral seized cannot exceed the borrower's available collateral.
+//! - Interest is accrued on the borrower's position before liquidation.
+
 #![allow(unused)]
+use crate::events::{emit_liquidation, LiquidationEvent};
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
 use crate::deposit::{
@@ -430,16 +453,18 @@ pub fn liquidate(
     })?;
 
     // Emit liquidation event
-    emit_liquidation_event(
+    emit_liquidation(
         env,
-        &liquidator,
-        &borrower,
-        debt_asset.clone(),
-        collateral_asset.clone(),
-        actual_debt_liquidated,
-        actual_collateral_seized,
-        incentive_amount,
-        timestamp,
+        LiquidationEvent {
+            liquidator: liquidator.clone(),
+            borrower: borrower.clone(),
+            debt_asset: debt_asset.clone(),
+            collateral_asset: collateral_asset.clone(),
+            debt_liquidated: actual_debt_liquidated,
+            collateral_seized: actual_collateral_seized,
+            incentive_amount,
+            timestamp,
+        },
     );
 
     // Emit position updated event
@@ -555,43 +580,4 @@ fn update_liquidation_analytics(
         .set(&protocol_analytics_key, &protocol_analytics);
 
     Ok(())
-}
-
-/// Emit liquidation event
-#[allow(clippy::too_many_arguments)]
-fn emit_liquidation_event(
-    env: &Env,
-    liquidator: &Address,
-    borrower: &Address,
-    debt_asset: Option<Address>,
-    collateral_asset: Option<Address>,
-    debt_liquidated: i128,
-    collateral_seized: i128,
-    incentive_amount: i128,
-    timestamp: u64,
-) {
-    let topics = (Symbol::new(env, "liquidation"), borrower.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "liquidator").into_val(env));
-    data.push_back(liquidator.clone().into_val(env));
-    data.push_back(Symbol::new(env, "borrower").into_val(env));
-    data.push_back(borrower.clone().into_val(env));
-    data.push_back(Symbol::new(env, "debt_liquidated").into_val(env));
-    data.push_back(debt_liquidated.into_val(env));
-    data.push_back(Symbol::new(env, "collateral_seized").into_val(env));
-    data.push_back(collateral_seized.into_val(env));
-    data.push_back(Symbol::new(env, "incentive_amount").into_val(env));
-    data.push_back(incentive_amount.into_val(env));
-    if let Some(debt_addr) = debt_asset {
-        data.push_back(Symbol::new(env, "debt_asset").into_val(env));
-        data.push_back(debt_addr.into_val(env));
-    }
-    if let Some(collateral_addr) = collateral_asset {
-        data.push_back(Symbol::new(env, "collateral_asset").into_val(env));
-        data.push_back(collateral_addr.into_val(env));
-    }
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(timestamp.into_val(env));
-
-    env.events().publish(topics, data);
 }

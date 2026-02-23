@@ -1,12 +1,11 @@
-#![allow(unused)]
-use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
+use soroban_sdk::{contracterror, Address, Env, Map, Symbol};
 
 use crate::deposit::{
     add_activity_log, emit_analytics_updated_event, emit_position_updated_event,
-    emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
-    AssetParams, DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
+    emit_user_activity_tracked_event, AssetParams, DepositDataKey, Position, ProtocolAnalytics,
+    UserAnalytics,
 };
-use crate::events::{log_withdrawal, WithdrawalEvent};
+use crate::events::{emit_withdrawal, WithdrawalEvent};
 
 /// Errors that can occur during withdraw operations
 #[contracterror]
@@ -109,7 +108,7 @@ fn validate_collateral_ratio_after_withdraw(
     };
 
     // Calculate total debt (debt + accrued interest)
-    let total_debt = position
+    let _total_debt = position
         .debt
         .checked_add(position.borrow_interest)
         .ok_or(WithdrawError::Overflow)?;
@@ -283,7 +282,7 @@ pub fn withdraw_collateral(
     })?;
 
     // Emit withdraw event
-    log_withdrawal(
+    emit_withdrawal(
         env,
         WithdrawalEvent {
             user: user.clone(),

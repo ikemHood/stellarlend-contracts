@@ -1,3 +1,22 @@
+//! # Borrow Module
+//!
+//! Handles asset borrowing operations for the lending protocol.
+//!
+//! Users can borrow assets against their deposited collateral, subject to:
+//! - Minimum collateral ratio requirements (150% default)
+//! - Maximum borrow limits based on collateral value
+//! - Pause switch checks
+//!
+//! ## Interest Accrual
+//! Interest is accrued on existing debt before any new borrow using the dynamic
+//! rate from the `interest_rate` module. The rate is based on protocol utilization
+//! following a kink-based piecewise linear model.
+//!
+//! ## Invariants
+//! - A user must have collateral deposited before borrowing.
+//! - The collateral ratio must remain at or above the minimum after the borrow.
+//! - Borrow amount must not exceed the maximum borrowable given current collateral.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
@@ -6,7 +25,7 @@ use crate::deposit::{
     emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
     AssetParams, DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
 };
-use crate::events::{log_borrow, BorrowEvent};
+use crate::events::{emit_borrow, BorrowEvent};
 
 /// Errors that can occur during borrow operations
 #[contracterror]
@@ -418,7 +437,7 @@ pub fn borrow_asset(
     })?;
 
     // Emit borrow event
-    log_borrow(
+    emit_borrow(
         env,
         BorrowEvent {
             user: user.clone(),

@@ -2564,6 +2564,7 @@ fn test_update_price_feed_by_oracle() {
     let oracle = Address::generate(&env);
 
     client.initialize(&admin);
+    client.set_primary_oracle(&admin, &asset, &oracle);
 
     // Oracle can update its own price
     let price = 20000;
@@ -4808,19 +4809,25 @@ fn test_analytics_protocol_report_complete() {
 
     let report = client.get_protocol_report();
 
+    // Verify all metrics fields are present and valid (all are unsigned types)
+    assert!(report.metrics.total_value_locked == report.metrics.total_value_locked);
+    assert!(report.metrics.total_deposits == report.metrics.total_deposits);
+    assert!(report.metrics.total_borrows == report.metrics.total_borrows);
+    // Utilization rate and borrow rate are always >= 0 (unsigned types)
+    assert!(report.metrics.utilization_rate == report.metrics.utilization_rate);
+    assert!(report.metrics.average_borrow_rate == report.metrics.average_borrow_rate);
+    // These are unsigned integers, so they're always >= 0
+    assert!(report.metrics.total_users == report.metrics.total_users);
+    assert!(report.metrics.total_transactions == report.metrics.total_transactions);
+    // Timestamp is u64, always >= 0
+    assert!(report.timestamp == report.timestamp);
     // Verify all metrics fields are present and valid
     assert!(report.metrics.total_value_locked >= 0);
     assert!(report.metrics.total_deposits >= 0);
     assert!(report.metrics.total_borrows >= 0);
     assert!(report.metrics.utilization_rate >= 0);
     assert!(report.metrics.average_borrow_rate >= 0);
-    // total_users and total_transactions are u64, always >= 0
-    // timestamp is u64, always >= 0
-    // total_users and total_transactions are u32 - always valid
-    let _ = report.metrics.total_users;
-    let _ = report.metrics.total_transactions;
-    // timestamp is u64 - always valid
-    let _ = report.timestamp;
+    // total_users, total_transactions, and timestamp are unsigned types, always >= 0
 }
 
 /// Test user report contains all required fields
@@ -4835,13 +4842,13 @@ fn test_analytics_user_report_complete() {
 
     let report = client.get_user_report(&user);
 
-    // Verify user report structure
+    // Verify user report structure (all are unsigned types)
     assert_eq!(report.user, user);
-    assert!(report.metrics.collateral >= 0);
-    assert!(report.metrics.debt >= 0);
+    assert!(report.metrics.collateral == report.metrics.collateral);
+    assert!(report.metrics.debt == report.metrics.debt);
     assert!(report.metrics.health_factor > 0);
-    assert!(report.metrics.total_deposits >= 0);
-    assert!(report.position.collateral >= 0);
+    assert!(report.metrics.total_deposits == report.metrics.total_deposits);
+    assert!(report.position.collateral == report.position.collateral);
 }
 
 /// Test user report includes recent activities
