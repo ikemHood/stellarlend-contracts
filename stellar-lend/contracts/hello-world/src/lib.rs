@@ -71,6 +71,13 @@ use flash_loan::{
     configure_flash_loan, execute_flash_loan, repay_flash_loan, set_flash_loan_fee, FlashLoanConfig,
 };
 
+mod bridge;
+#[allow(unused_imports)]
+use bridge::{
+    bridge_deposit, bridge_withdraw, get_bridge_config, list_bridges, register_bridge,
+    set_bridge_fee, BridgeConfig, BridgeError,
+};
+
 mod liquidate;
 use liquidate::liquidate;
 
