@@ -23,7 +23,7 @@ fn create_test_config(horizon_url: String, soroban_url: String) -> Arc<Blockchai
         )
         .unwrap()
         .with_request_timeout(Duration::from_secs(5))
-        .with_max_retries(1)
+        .with_max_retries(3)
         .with_tx_config(100, 5),
     )
 }
