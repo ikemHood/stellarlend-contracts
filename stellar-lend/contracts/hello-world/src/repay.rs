@@ -1,3 +1,19 @@
+//! # Repay Module
+//!
+//! Handles debt repayment operations for the lending protocol.
+//!
+//! Supports both partial and full repayments. Interest is accrued before
+//! repayment is applied. Repayment is allocated interest-first, then principal.
+//!
+//! ## Repayment Order
+//! 1. Accrued interest is paid first.
+//! 2. Any remaining repayment amount reduces the principal debt.
+//!
+//! ## Invariants
+//! - Repay amount must be strictly positive.
+//! - User must have outstanding debt to repay.
+//! - Token transfers use `transfer_from`, requiring prior user approval.
+
 #![allow(unused)]
 use soroban_sdk::{contracterror, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
@@ -6,7 +22,7 @@ use crate::deposit::{
     emit_user_activity_tracked_event, update_protocol_analytics, update_user_analytics, Activity,
     DepositDataKey, Position, ProtocolAnalytics, UserAnalytics,
 };
-use crate::events::{log_repay, RepayEvent};
+use crate::events::{emit_repay, RepayEvent};
 
 /// Errors that can occur during repay operations
 #[contracterror]
@@ -148,6 +164,33 @@ pub fn repay_debt(
     update_protocol_analytics_repay(env, repay_amount)?;
     add_activity_log(env, &user, Symbol::new(env, "repay"), repay_amount, asset.clone(), timestamp).map_err(|e| RepayError::Overflow)?;
     log_repay(env, RepayEvent { user: user.clone(), asset: asset.clone(), amount: repay_amount, timestamp });
+
+    // Add to activity log
+    add_activity_log(
+        env,
+        &user,
+        Symbol::new(env, "repay"),
+        repay_amount,
+        asset.clone(),
+        timestamp,
+    )
+    .map_err(|e| match e {
+        crate::deposit::DepositError::Overflow => RepayError::Overflow,
+        _ => RepayError::Overflow,
+    })?;
+
+    // Emit repay event
+    emit_repay(
+        env,
+        RepayEvent {
+            user: user.clone(),
+            asset: asset.clone(),
+            amount: repay_amount,
+            timestamp,
+        },
+    );
+
+    // Emit position updated event
     emit_position_updated_event(env, &user, &position);
     emit_analytics_updated_event(env, &user, "repay", repay_amount, timestamp);
     emit_user_activity_tracked_event(env, &user, Symbol::new(env, "repay"), repay_amount, timestamp);
