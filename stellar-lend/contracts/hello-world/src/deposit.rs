@@ -353,6 +353,27 @@ pub fn deposit_collateral(
     Ok(new_collateral)
 }
 
+/// Set the native asset address (admin only).
+/// Required for deposit/borrow/repay with asset = None. Must be called before using None as asset.
+pub fn set_native_asset_address(
+    env: &Env,
+    caller: Address,
+    native_asset: Address,
+) -> Result<(), DepositError> {
+    let admin = crate::admin::get_admin(env).ok_or(DepositError::InvalidAsset)?;
+    if caller != admin {
+        return Err(DepositError::InvalidAsset);
+    }
+    caller.require_auth();
+    if native_asset == env.current_contract_address() {
+        return Err(DepositError::InvalidAsset);
+    }
+    env.storage()
+        .persistent()
+        .set(&DepositDataKey::NativeAssetAddress, &native_asset);
+    Ok(())
+}
+
 /// Update user analytics after deposit
 pub fn update_user_analytics(
     env: &Env,

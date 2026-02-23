@@ -203,6 +203,15 @@ impl HelloContract {
             .unwrap_or_else(|e| panic!("Deposit error: {:?}", e))
     }
 
+    /// Set native asset address (admin only). Required before using asset = None for deposit/borrow/repay.
+    pub fn set_native_asset_address(
+        env: Env,
+        caller: Address,
+        native_asset: Address,
+    ) -> Result<(), deposit::DepositError> {
+        deposit::set_native_asset_address(&env, caller, native_asset)
+    }
+
     /// Set risk parameters (admin only)
     ///
     /// Updates risk parameters with validation and change limits.
@@ -1126,6 +1135,61 @@ impl HelloContract {
         user: Address,
     ) -> Result<UserPositionSummary, CrossAssetError> {
         get_user_position_summary(&env, &user)
+    }
+
+    // --- Bridge ---
+
+    /// Register a new bridge (admin only)
+    pub fn register_bridge(
+        env: Env,
+        caller: Address,
+        network_id: u32,
+        bridge: Address,
+        fee_bps: i128,
+    ) -> Result<(), BridgeError> {
+        register_bridge(&env, caller, network_id, bridge, fee_bps)
+    }
+
+    /// Set fee for a bridge (admin only)
+    pub fn set_bridge_fee(
+        env: Env,
+        caller: Address,
+        network_id: u32,
+        fee_bps: i128,
+    ) -> Result<(), BridgeError> {
+        set_bridge_fee(&env, caller, network_id, fee_bps)
+    }
+
+    /// List all registered bridges
+    pub fn list_bridges(env: Env) -> Map<u32, BridgeConfig> {
+        list_bridges(&env)
+    }
+
+    /// Get configuration for a bridge by network id
+    pub fn get_bridge_config(env: Env, network_id: u32) -> Result<BridgeConfig, BridgeError> {
+        get_bridge_config(&env, network_id)
+    }
+
+    /// Deposit into protocol via a bridge
+    pub fn bridge_deposit(
+        env: Env,
+        user: Address,
+        network_id: u32,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<i128, BridgeError> {
+        bridge_deposit(&env, user, network_id, asset, amount)
+    }
+
+    /// Withdraw from protocol via a bridge
+    pub fn bridge_withdraw(
+        env: Env,
+        user: Address,
+        network_id: u32,
+        asset: Option<Address>,
+        amount: i128,
+    ) -> Result<i128, BridgeError> {
+        bridge_withdraw(&env, user, network_id, asset, amount)
     }
 }
 

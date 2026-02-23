@@ -1,5 +1,6 @@
 pub mod admin_test;
 pub mod analytics_test;
+pub mod test_helpers;
 pub mod asset_config_test;
 pub mod borrow_test;
 pub mod config_test;

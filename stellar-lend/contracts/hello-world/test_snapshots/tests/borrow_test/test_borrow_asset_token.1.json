@@ -1,7 +1,8 @@
 {
   "generators": {
     "address": 3,
-    "nonce": 0
+    "nonce": 0,
+    "mux_id": 0
   },
   "auth": [
     [],
@@ -9,7 +10,7 @@
     []
   ],
   "ledger": {
-    "protocol_version": 22,
+    "protocol_version": 23,
     "sequence_number": 0,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -64,10 +65,7 @@
                             "symbol": "amount"
                           },
                           "val": {
-                            "i128": {
-                              "hi": 0,
-                              "lo": 2000
-                            }
+                            "i128": "2000"
                           }
                         },
                         {
@@ -89,7 +87,7 @@
                             "symbol": "timestamp"
                           },
                           "val": {
-                            "u64": 0
+                            "u64": "0"
                           }
                         },
                         {
@@ -153,10 +151,7 @@
                         "symbol": "collateral_factor"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 10000
-                        }
+                        "i128": "10000"
                       }
                     },
                     {
@@ -172,10 +167,7 @@
                         "symbol": "max_deposit"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     }
                   ]
@@ -223,10 +215,7 @@
                 },
                 "durability": "persistent",
                 "val": {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 2000
-                  }
+                  "i128": "2000"
                 }
               }
             },
@@ -277,10 +266,7 @@
                         "symbol": "borrow_interest"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -288,10 +274,7 @@
                         "symbol": "collateral"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000
-                        }
+                        "i128": "2000"
                       }
                     },
                     {
@@ -299,10 +282,7 @@
                         "symbol": "debt"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -310,7 +290,7 @@
                         "symbol": "last_accrual_time"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     }
                   ]
@@ -358,10 +338,7 @@
                         "symbol": "total_borrows"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -369,10 +346,7 @@
                         "symbol": "total_deposits"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000
-                        }
+                        "i128": "2000"
                       }
                     },
                     {
@@ -380,10 +354,7 @@
                         "symbol": "total_value_locked"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000
-                        }
+                        "i128": "2000"
                       }
                     }
                   ]
@@ -437,10 +408,7 @@
                         "symbol": "activity_score"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -448,10 +416,7 @@
                         "symbol": "collateral_value"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000
-                        }
+                        "i128": "2000"
                       }
                     },
                     {
@@ -459,10 +424,7 @@
                         "symbol": "collateralization_ratio"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -470,10 +432,7 @@
                         "symbol": "debt_value"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -481,7 +440,7 @@
                         "symbol": "first_interaction"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -489,7 +448,7 @@
                         "symbol": "last_activity"
                       },
                       "val": {
-                        "u64": 0
+                        "u64": "0"
                       }
                     },
                     {
@@ -505,10 +464,7 @@
                         "symbol": "risk_level"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -516,10 +472,7 @@
                         "symbol": "total_borrows"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -527,10 +480,7 @@
                         "symbol": "total_deposits"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000
-                        }
+                        "i128": "2000"
                       }
                     },
                     {
@@ -538,10 +488,7 @@
                         "symbol": "total_repayments"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -549,10 +496,7 @@
                         "symbol": "total_withdrawals"
                       },
                       "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 0
-                        }
+                        "i128": "0"
                       }
                     },
                     {
@@ -560,7 +504,7 @@
                         "symbol": "transaction_count"
                       },
                       "val": {
-                        "u64": 1
+                        "u64": "1"
                       }
                     }
                   ]
@@ -631,103 +575,45 @@
     {
       "event": {
         "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
         "type_": "contract",
         "body": {
           "v0": {
             "topics": [
               {
-                "symbol": "deposit"
+                "symbol": "deposit_event"
               }
             ],
             "data": {
-              "vec": [
+              "map": [
                 {
-                  "symbol": "Deposit"
-                },
-                {
-                  "map": [
-                    {
-                      "key": {
-                        "symbol": "amount"
-                      },
-                      "val": {
-                        "i128": {
-                          "hi": 0,
-                          "lo": 2000
-                        }
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "asset"
-                      },
-                      "val": "void"
-                    },
-                    {
-                      "key": {
-                        "symbol": "timestamp"
-                      },
-                      "val": {
-                        "u64": 0
-                      }
-                    },
-                    {
-                      "key": {
-                        "symbol": "user"
-                      },
-                      "val": {
-                        "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        }
-      },
-      "failed_call": false
-    },
-    {
-      "event": {
-        "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
-        "type_": "contract",
-        "body": {
-          "v0": {
-            "topics": [
-              {
-                "symbol": "position_updated"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-              }
-            ],
-            "data": {
-              "vec": [
-                {
-                  "symbol": "user"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
-                  "symbol": "collateral"
-                },
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 2000
+                  "key": {
+                    "symbol": "amount"
+                  },
+                  "val": {
+                    "i128": "2000"
                   }
                 },
                 {
-                  "symbol": "debt"
+                  "key": {
+                    "symbol": "asset"
+                  },
+                  "val": "void"
                 },
                 {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 0
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "0"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "user"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                   }
                 }
               ]
@@ -740,46 +626,40 @@
     {
       "event": {
         "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
         "type_": "contract",
         "body": {
           "v0": {
             "topics": [
               {
-                "symbol": "analytics_updated"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                "symbol": "position_updated_event"
               }
             ],
             "data": {
-              "vec": [
+              "map": [
                 {
-                  "symbol": "user"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
-                  "symbol": "activity_type"
-                },
-                {
-                  "string": "deposit"
-                },
-                {
-                  "symbol": "amount"
-                },
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 2000
+                  "key": {
+                    "symbol": "collateral"
+                  },
+                  "val": {
+                    "i128": "2000"
                   }
                 },
                 {
-                  "symbol": "timestamp"
+                  "key": {
+                    "symbol": "debt"
+                  },
+                  "val": {
+                    "i128": "0"
+                  }
                 },
                 {
-                  "u64": 0
+                  "key": {
+                    "symbol": "user"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  }
                 }
               ]
             }
@@ -791,46 +671,101 @@
     {
       "event": {
         "ext": "v0",
-        "contract_id": "0000000000000000000000000000000000000000000000000000000000000001",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
         "type_": "contract",
         "body": {
           "v0": {
             "topics": [
               {
-                "symbol": "user_activity_tracked"
-              },
-              {
-                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                "symbol": "analytics_updated_event"
               }
             ],
             "data": {
-              "vec": [
+              "map": [
                 {
-                  "symbol": "user"
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
-                },
-                {
-                  "symbol": "operation"
-                },
-                {
-                  "symbol": "deposit"
-                },
-                {
-                  "symbol": "amount"
-                },
-                {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 2000
+                  "key": {
+                    "symbol": "activity_type"
+                  },
+                  "val": {
+                    "string": "deposit"
                   }
                 },
                 {
-                  "symbol": "timestamp"
+                  "key": {
+                    "symbol": "amount"
+                  },
+                  "val": {
+                    "i128": "2000"
+                  }
                 },
                 {
-                  "u64": 0
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "0"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "user"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "failed_call": false
+    },
+    {
+      "event": {
+        "ext": "v0",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM",
+        "type_": "contract",
+        "body": {
+          "v0": {
+            "topics": [
+              {
+                "symbol": "user_activity_tracked_event"
+              }
+            ],
+            "data": {
+              "map": [
+                {
+                  "key": {
+                    "symbol": "amount"
+                  },
+                  "val": {
+                    "i128": "2000"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "operation"
+                  },
+                  "val": {
+                    "symbol": "deposit"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "timestamp"
+                  },
+                  "val": {
+                    "u64": "0"
+                  }
+                },
+                {
+                  "key": {
+                    "symbol": "user"
+                  },
+                  "val": {
+                    "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
+                  }
                 }
               ]
             }

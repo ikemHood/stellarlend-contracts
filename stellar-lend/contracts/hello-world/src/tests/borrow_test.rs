@@ -433,11 +433,11 @@ fn test_borrow_asset_with_existing_debt() {
 /// Expected: New borrow succeeds, debt correctly calculated.
 #[test]
 fn test_borrow_asset_after_partial_repayment() {
-    let env = create_test_env();
-    let contract_id = env.register(HelloContract, ());
-    let client = HelloContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
+    let (env, contract_id, client, _admin, user, native_asset) =
+        crate::tests::test_helpers::setup_env_with_native_asset();
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
+    token_client.mint(&user, &2000);
+    token_client.approve(&user, &contract_id, &2000, &(env.ledger().sequence() + 100));
 
     // Deposit collateral
     client.deposit_collateral(&user, &None, &3000);
@@ -768,11 +768,11 @@ fn test_borrow_interest_calculation_time_based() {
 /// Expected: Interest resets to zero when debt is zero.
 #[test]
 fn test_borrow_interest_resets_on_zero_debt() {
-    let env = create_test_env();
-    let contract_id = env.register(HelloContract, ());
-    let client = HelloContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
+    let (env, contract_id, client, _admin, user, native_asset) =
+        crate::tests::test_helpers::setup_env_with_native_asset();
+    let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
+    token_client.mint(&user, &2500);
+    token_client.approve(&user, &contract_id, &2500, &(env.ledger().sequence() + 100));
 
     // Deposit collateral
     client.deposit_collateral(&user, &None, &3000);
