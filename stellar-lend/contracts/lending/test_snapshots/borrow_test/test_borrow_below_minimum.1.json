@@ -1,7 +1,8 @@
 {
   "generators": {
-    "address": 4,
-    "nonce": 0
+    "address": 5,
+    "nonce": 0,
+    "mux_id": 0
   },
   "auth": [
     [],
@@ -9,7 +10,7 @@
     []
   ],
   "ledger": {
-    "protocol_version": 22,
+    "protocol_version": 23,
     "sequence_number": 0,
     "timestamp": 0,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -25,7 +26,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "DebtCeiling"
+                  "symbol": "BorrowDebtCeiling"
                 }
               ]
             },
@@ -42,16 +43,13 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "DebtCeiling"
+                      "symbol": "BorrowDebtCeiling"
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 1000000000
-                  }
+                  "i128": "1000000000"
                 }
               }
             },
@@ -67,7 +65,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "MinBorrowAmount"
+                  "symbol": "BorrowMinAmount"
                 }
               ]
             },
@@ -84,16 +82,13 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "MinBorrowAmount"
+                      "symbol": "BorrowMinAmount"
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "i128": {
-                    "hi": 0,
-                    "lo": 5000
-                  }
+                  "i128": "5000"
                 }
               }
             },
@@ -109,7 +104,7 @@
             "key": {
               "vec": [
                 {
-                  "symbol": "Paused"
+                  "symbol": "ProtocolAdmin"
                 }
               ]
             },
@@ -126,13 +121,13 @@
                 "key": {
                   "vec": [
                     {
-                      "symbol": "Paused"
+                      "symbol": "ProtocolAdmin"
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "bool": false
+                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 }
               }
             },
