@@ -86,7 +86,7 @@ fn test_direct_deposit_repay() {
     client.initialize_borrow_settings(&1_000_000_000, &1000);
 
     // Test direct deposit
-    client.deposit(&user, &asset, &10_000);
+    client.deposit_collateral(&user, &asset, &10_000);
     assert_eq!(client.get_user_collateral(&user).amount, 10_000);
 
     // Initial borrow

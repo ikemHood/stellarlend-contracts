@@ -11,7 +11,7 @@
 //! Minimum collateral ratio is 150% (15,000 basis points).
 
 use crate::pause::{self, PauseType};
-use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
+use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env, Symbol};
 
 /// Errors that can occur during borrow operations.
 #[contracterror]
