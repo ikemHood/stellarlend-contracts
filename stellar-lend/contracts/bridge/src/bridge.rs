@@ -1,6 +1,6 @@
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, log, symbol_short, Address, Env, Map,
-    String, Symbol, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype, log, symbol_short, Address,
+    Env, String, Symbol, Vec,
 };
 
 // ── Error type ────────────────────────────────────────────────────────────────
@@ -23,10 +23,51 @@ pub enum ContractError {
     AmountBelowMinimum = 12,
 }
 
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BridgeRegisteredEvent {
+    pub bridge_id: String,
+    pub fee_bps: u64,
+    pub min_amount: i128,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BridgeFeeUpdatedEvent {
+    pub bridge_id: String,
+    pub fee_bps: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BridgeActiveUpdatedEvent {
+    pub bridge_id: String,
+    pub active: bool,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BridgeDepositEvent {
+    pub bridge_id: String,
+    pub amount: i128,
+    pub fee: i128,
+    pub net: i128,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct BridgeWithdrawalEvent {
+    pub bridge_id: String,
+    pub amount: i128,
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 const MAX_FEE_BPS: u64 = 1_000; // 10 % ceiling
+#[allow(dead_code)]
 const MAX_ID_LEN: u32 = 64;
+#[allow(dead_code)]
 const ADMIN_KEY: Symbol = symbol_short!("ADMIN");
 
 // ── Storage types ─────────────────────────────────────────────────────────────
@@ -49,9 +90,11 @@ pub enum DataKey {
 }
 
 #[contract]
+#[allow(dead_code)]
 pub struct BridgeContract;
 
 #[contractimpl]
+#[allow(dead_code)]
 impl BridgeContract {
     pub fn init(env: Env, admin: Address) -> Result<(), ContractError> {
         if env.storage().instance().has(&ADMIN_KEY) {
@@ -115,10 +158,6 @@ impl BridgeContract {
             .unwrap_or_else(|| Vec::new(env))
     }
 
-    fn emit(env: &Env, action: Symbol, bridge_id: &String, data: Map<Symbol, i128>) {
-        env.events().publish((action, bridge_id.clone()), data);
-    }
-
     // ── register_bridge ───────────────────────────────────────────────────────
 
     /// Admin: register a new bridge entry.
@@ -160,10 +199,12 @@ impl BridgeContract {
         list.push_back(bridge_id.clone());
         env.storage().instance().set(&DataKey::BridgeList, &list);
 
-        let mut d: Map<Symbol, i128> = Map::new(&env);
-        d.set(symbol_short!("fee_bps"), fee_bps as i128);
-        d.set(symbol_short!("min_amt"), min_amount);
-        Self::emit(&env, symbol_short!("reg_brdg"), &bridge_id, d);
+        BridgeRegisteredEvent {
+            bridge_id: bridge_id.clone(),
+            fee_bps,
+            min_amount,
+        }
+        .publish(&env);
         log!(&env, "register_bridge {}", bridge_id);
         Ok(())
     }
@@ -187,9 +228,11 @@ impl BridgeContract {
         cfg.fee_bps = fee_bps;
         Self::save_bridge(&env, &bridge_id, &cfg);
 
-        let mut d: Map<Symbol, i128> = Map::new(&env);
-        d.set(symbol_short!("fee_bps"), fee_bps as i128);
-        Self::emit(&env, symbol_short!("set_fee"), &bridge_id, d);
+        BridgeFeeUpdatedEvent {
+            bridge_id: bridge_id.clone(),
+            fee_bps,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -208,9 +251,11 @@ impl BridgeContract {
         cfg.active = active;
         Self::save_bridge(&env, &bridge_id, &cfg);
 
-        let mut d: Map<Symbol, i128> = Map::new(&env);
-        d.set(symbol_short!("active"), if active { 1 } else { 0 });
-        Self::emit(&env, symbol_short!("set_act"), &bridge_id, d);
+        BridgeActiveUpdatedEvent {
+            bridge_id: bridge_id.clone(),
+            active,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -242,11 +287,13 @@ impl BridgeContract {
         cfg.total_deposited += amount;
         Self::save_bridge(&env, &bridge_id, &cfg);
 
-        let mut d: Map<Symbol, i128> = Map::new(&env);
-        d.set(symbol_short!("amount"), amount);
-        d.set(symbol_short!("fee"), fee);
-        d.set(symbol_short!("net"), net);
-        Self::emit(&env, symbol_short!("deposit"), &bridge_id, d);
+        BridgeDepositEvent {
+            bridge_id: bridge_id.clone(),
+            amount,
+            fee,
+            net,
+        }
+        .publish(&env);
         log!(
             &env,
             "bridge_deposit {} amount={} fee={} net={}",
@@ -284,9 +331,11 @@ impl BridgeContract {
         cfg.total_withdrawn += amount;
         Self::save_bridge(&env, &bridge_id, &cfg);
 
-        let mut d: Map<Symbol, i128> = Map::new(&env);
-        d.set(symbol_short!("amount"), amount);
-        Self::emit(&env, symbol_short!("withdraw"), &bridge_id, d);
+        BridgeWithdrawalEvent {
+            bridge_id: bridge_id.clone(),
+            amount,
+        }
+        .publish(&env);
         log!(
             &env,
             "bridge_withdraw {} -> {} amount={}",

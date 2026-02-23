@@ -18,6 +18,10 @@
 //! - Only the admin address can modify risk parameters.
 
 #![allow(unused)]
+use crate::events::{
+    emit_admin_action, emit_pause_state_changed, emit_risk_params_updated, AdminActionEvent,
+    PauseStateChangedEvent, RiskParamsUpdatedEvent,
+};
 use soroban_sdk::{contracterror, contracttype, Address, Env, IntoVal, Map, Symbol, Val, Vec};
 
 /// Errors that can occur during risk management operations
@@ -49,6 +53,8 @@ pub enum RiskManagementError {
     Overflow = 11,
     /// Action requires governance approval
     GovernanceRequired = 12,
+    /// Contract has already been initialized
+    AlreadyInitialized = 13,
 }
 /// Storage keys for risk management data
 #[contracttype]
@@ -136,9 +142,11 @@ const MAX_PARAMETER_CHANGE_BPS: i128 = 1_000; // 10% maximum change per update
 /// # Errors
 /// * `RiskManagementError::InvalidParameter` - If default parameters are invalid
 pub fn initialize_risk_management(env: &Env, admin: Address) -> Result<(), RiskManagementError> {
-    // Set admin
-    let admin_key = RiskDataKey::Admin;
-    env.storage().persistent().set(&admin_key, &admin);
+    // Check if initialized
+    let config_key = RiskDataKey::RiskConfig;
+    if env.storage().persistent().has(&config_key) {
+        return Ok(());
+    }
 
     // Initialize default risk config
     let default_config = RiskConfig {
@@ -160,6 +168,15 @@ pub fn initialize_risk_management(env: &Env, admin: Address) -> Result<(), RiskM
     let emergency_key = RiskDataKey::EmergencyPause;
     env.storage().persistent().set(&emergency_key, &false);
 
+    emit_admin_action(
+        env,
+        AdminActionEvent {
+            actor: admin.clone(),
+            action: Symbol::new(env, "initialize"),
+            timestamp: env.ledger().timestamp(),
+        },
+    );
+
     Ok(())
 }
 
@@ -174,21 +191,15 @@ fn create_default_pause_switches(env: &Env) -> Map<Symbol, bool> {
     switches
 }
 
-/// Get the admin address
+/// Get the admin address (deprecated, delegates to new admin module)
+#[deprecated(note = "Use crate::admin::get_admin instead")]
 pub fn get_admin(env: &Env) -> Option<Address> {
-    let admin_key = RiskDataKey::Admin;
-    env.storage()
-        .persistent()
-        .get::<RiskDataKey, Address>(&admin_key)
+    crate::admin::get_admin(env)
 }
 
-/// Check if caller is admin
+/// Check if caller is admin (delegates to new admin module)
 pub fn require_admin(env: &Env, caller: &Address) -> Result<(), RiskManagementError> {
-    let admin = get_admin(env).ok_or(RiskManagementError::Unauthorized)?;
-    if admin != *caller {
-        return Err(RiskManagementError::Unauthorized);
-    }
-    Ok(())
+    crate::admin::require_admin(env, caller).map_err(|_| RiskManagementError::Unauthorized)
 }
 
 /// Get current risk configuration
@@ -624,58 +635,52 @@ pub fn get_liquidation_incentive(env: &Env) -> Result<i128, RiskManagementError>
 
 /// Emit risk parameters updated event
 fn emit_risk_params_updated_event(env: &Env, caller: &Address, config: &RiskConfig) {
-    let topics = (Symbol::new(env, "risk_params_updated"), caller.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "caller").into_val(env));
-    data.push_back(caller.clone().into_val(env));
-    data.push_back(Symbol::new(env, "min_collateral_ratio").into_val(env));
-    data.push_back(config.min_collateral_ratio.into_val(env));
-    data.push_back(Symbol::new(env, "liquidation_threshold").into_val(env));
-    data.push_back(config.liquidation_threshold.into_val(env));
-    data.push_back(Symbol::new(env, "close_factor").into_val(env));
-    data.push_back(config.close_factor.into_val(env));
-    data.push_back(Symbol::new(env, "liquidation_incentive").into_val(env));
-    data.push_back(config.liquidation_incentive.into_val(env));
-    data.push_back(Symbol::new(env, "timestamp").into_val(env));
-    data.push_back(config.last_update.into_val(env));
-
-    env.events().publish(topics, data);
+    emit_risk_params_updated(
+        env,
+        RiskParamsUpdatedEvent {
+            actor: caller.clone(),
+            timestamp: config.last_update,
+        },
+    );
 }
 
 /// Emit pause switch updated event
 fn emit_pause_switch_updated_event(env: &Env, caller: &Address, operation: &Symbol, paused: bool) {
-    let topics = (Symbol::new(env, "pause_switch_updated"), caller.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "caller").into_val(env));
-    data.push_back(caller.clone().into_val(env));
-    data.push_back(Symbol::new(env, "operation").into_val(env));
-    data.push_back(operation.clone().into_val(env));
-    data.push_back(Symbol::new(env, "paused").into_val(env));
-    data.push_back(paused.into_val(env));
-
-    env.events().publish(topics, data);
+    emit_pause_state_changed(
+        env,
+        PauseStateChangedEvent {
+            actor: caller.clone(),
+            operation: operation.clone(),
+            paused,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
 }
 
 /// Emit pause switches updated event
 fn emit_pause_switches_updated_event(env: &Env, caller: &Address, switches: &Map<Symbol, bool>) {
-    let topics = (Symbol::new(env, "pause_switches_updated"), caller.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "caller").into_val(env));
-    data.push_back(caller.clone().into_val(env));
-    data.push_back(Symbol::new(env, "switches").into_val(env));
-    data.push_back(switches.clone().into_val(env));
-
-    env.events().publish(topics, data);
+    for (operation, paused) in switches.iter() {
+        emit_pause_state_changed(
+            env,
+            PauseStateChangedEvent {
+                actor: caller.clone(),
+                operation,
+                paused,
+                timestamp: env.ledger().timestamp(),
+            },
+        );
+    }
 }
 
 /// Emit emergency pause event
 fn emit_emergency_pause_event(env: &Env, caller: &Address, paused: bool) {
-    let topics = (Symbol::new(env, "emergency_pause"), caller.clone());
-    let mut data: Vec<Val> = Vec::new(env);
-    data.push_back(Symbol::new(env, "caller").into_val(env));
-    data.push_back(caller.clone().into_val(env));
-    data.push_back(Symbol::new(env, "paused").into_val(env));
-    data.push_back(paused.into_val(env));
-
-    env.events().publish(topics, data);
+    emit_pause_state_changed(
+        env,
+        PauseStateChangedEvent {
+            actor: caller.clone(),
+            operation: Symbol::new(env, "emergency"),
+            paused,
+            timestamp: env.ledger().timestamp(),
+        },
+    );
 }

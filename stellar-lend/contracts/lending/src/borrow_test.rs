@@ -4,19 +4,32 @@ use soroban_sdk::{
     Address, Env,
 };
 
+fn setup_test(
+    env: &Env,
+) -> (
+    LendingContractClient<'_>,
+    Address,
+    Address,
+    Address,
+    Address,
+) {
+    let contract_id = env.register(LendingContract, ());
+    let client = LendingContractClient::new(env, &contract_id);
+
+    let admin = Address::generate(env);
+    let user = Address::generate(env);
+    let asset = Address::generate(env);
+    let collateral_asset = Address::generate(env);
+
+    client.initialize(&admin, &1_000_000_000, &1000);
+    (client, admin, user, asset, collateral_asset)
+}
+
 #[test]
 fn test_borrow_success() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
 
     client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
 
@@ -32,15 +45,7 @@ fn test_borrow_success() {
 fn test_borrow_insufficient_collateral() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
 
     let result = client.try_borrow(&user, &asset, &10_000, &collateral_asset, &10_000);
     assert_eq!(result, Err(Ok(BorrowError::InsufficientCollateral)));
@@ -50,16 +55,9 @@ fn test_borrow_insufficient_collateral() {
 fn test_borrow_protocol_paused() {
     let env = Env::default();
     env.mock_all_auths();
+    let (client, admin, user, asset, collateral_asset) = setup_test(&env);
 
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
-    client.set_paused(&true);
+    client.set_pause(&admin, &PauseType::Borrow, &true);
 
     let result = client.try_borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
     assert_eq!(result, Err(Ok(BorrowError::ProtocolPaused)));
@@ -69,15 +67,7 @@ fn test_borrow_protocol_paused() {
 fn test_borrow_invalid_amount() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
 
     let result = client.try_borrow(&user, &asset, &0, &collateral_asset, &20_000);
     assert_eq!(result, Err(Ok(BorrowError::InvalidAmount)));
@@ -93,12 +83,12 @@ fn test_borrow_below_minimum() {
 
     let contract_id = env.register(LendingContract, ());
     let client = LendingContractClient::new(&env, &contract_id);
-
+    let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
     let collateral_asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&1_000_000_000, &5000);
+    client.initialize(&admin, &1_000_000_000, &5000);
 
     let result = client.try_borrow(&user, &asset, &1000, &collateral_asset, &2000);
     assert_eq!(result, Err(Ok(BorrowError::BelowMinimumBorrow)));
@@ -111,12 +101,12 @@ fn test_borrow_debt_ceiling() {
 
     let contract_id = env.register(LendingContract, ());
     let client = LendingContractClient::new(&env, &contract_id);
-
+    let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
     let collateral_asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&50_000, &1000);
+    client.initialize(&admin, &50_000, &1000);
 
     let result = client.try_borrow(&user, &asset, &100_000, &collateral_asset, &200_000);
     assert_eq!(result, Err(Ok(BorrowError::DebtCeilingReached)));
@@ -126,15 +116,7 @@ fn test_borrow_debt_ceiling() {
 fn test_borrow_multiple_times() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
 
     client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
     client.borrow(&user, &asset, &5_000, &collateral_asset, &10_000);
@@ -155,14 +137,7 @@ fn test_borrow_interest_accrual() {
         li.timestamp = 1000;
     });
 
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
     client.borrow(&user, &asset, &100_000, &collateral_asset, &200_000);
 
     env.ledger().with_mut(|li| {
@@ -178,15 +153,7 @@ fn test_borrow_interest_accrual() {
 fn test_collateral_ratio_validation() {
     let env = Env::default();
     env.mock_all_auths();
-
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
+    let (client, _admin, user, asset, collateral_asset) = setup_test(&env);
 
     // Exactly 150% collateral - should succeed
     client.borrow(&user, &asset, &10_000, &collateral_asset, &15_000);
@@ -201,21 +168,13 @@ fn test_collateral_ratio_validation() {
 fn test_pause_unpause() {
     let env = Env::default();
     env.mock_all_auths();
+    let (client, admin, user, asset, collateral_asset) = setup_test(&env);
 
-    let contract_id = env.register(LendingContract, ());
-    let client = LendingContractClient::new(&env, &contract_id);
-
-    let user = Address::generate(&env);
-    let asset = Address::generate(&env);
-    let collateral_asset = Address::generate(&env);
-
-    client.initialize_borrow_settings(&1_000_000_000, &1000);
-
-    client.set_paused(&true);
+    client.set_pause(&admin, &PauseType::Borrow, &true);
     let result = client.try_borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
     assert_eq!(result, Err(Ok(BorrowError::ProtocolPaused)));
 
-    client.set_paused(&false);
+    client.set_pause(&admin, &PauseType::Borrow, &false);
     client.borrow(&user, &asset, &10_000, &collateral_asset, &20_000);
 }
 
@@ -226,12 +185,12 @@ fn test_overflow_protection() {
 
     let contract_id = env.register(LendingContract, ());
     let client = LendingContractClient::new(&env, &contract_id);
-
+    let admin = Address::generate(&env);
     let user = Address::generate(&env);
     let asset = Address::generate(&env);
     let collateral_asset = Address::generate(&env);
 
-    client.initialize_borrow_settings(&i128::MAX, &1000);
+    client.initialize(&admin, &i128::MAX, &1000);
 
     // First borrow with reasonable amount
     client.borrow(&user, &asset, &1_000_000, &collateral_asset, &2_000_000);

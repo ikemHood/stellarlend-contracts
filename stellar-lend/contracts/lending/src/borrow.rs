@@ -10,7 +10,8 @@
 //! ## Collateral Requirements
 //! Minimum collateral ratio is 150% (15,000 basis points).
 
-use soroban_sdk::{contracterror, contracttype, Address, Env, Symbol};
+use crate::pause::{self, PauseType};
+use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
 
 /// Errors that can occur during borrow operations.
 #[contracterror]
@@ -35,26 +36,31 @@ pub enum BorrowError {
     BelowMinimumBorrow = 8,
 }
 
-/// Storage keys for borrow-related data.
+/// Storage keys for protocol-wide data.
 #[contracttype]
 #[derive(Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum BorrowDataKey {
+    /// Protocol admin address
+    ProtocolAdmin,
     /// Per-user debt position
-    UserDebt(Address),
+    BorrowUserDebt(Address),
     /// Per-user collateral position
-    UserCollateral(Address),
+    BorrowUserCollateral(Address),
     /// Aggregate protocol debt
-    TotalDebt,
+    BorrowTotalDebt,
     /// Maximum total debt allowed
-    DebtCeiling,
+    BorrowDebtCeiling,
     /// Interest rate configuration
-    InterestRate,
+    BorrowInterestRate,
     /// Collateral ratio configuration
-    CollateralRatio,
+    BorrowCollateralRatio,
     /// Minimum borrow amount
-    MinBorrowAmount,
-    /// Protocol pause flag
-    Paused,
+    BorrowMinAmount,
+    /// Oracle contract address for price feeds (optional)
+    OracleAddress,
+    /// Liquidation threshold in basis points (e.g. 8000 = 80%)
+    LiquidationThresholdBps,
 }
 
 /// User debt position tracking.
@@ -74,7 +80,7 @@ pub struct DebtPosition {
 /// User collateral position tracking.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
-pub struct CollateralPosition {
+pub struct BorrowCollateral {
     /// Amount of collateral deposited
     pub amount: i128,
     /// Address of the collateral asset
@@ -82,7 +88,7 @@ pub struct CollateralPosition {
 }
 
 /// Event data emitted on each borrow operation.
-#[contracttype]
+#[contractevent]
 #[derive(Clone, Debug)]
 pub struct BorrowEvent {
     /// Borrower's address
@@ -102,23 +108,6 @@ const INTEREST_RATE_PER_YEAR: i128 = 500; // 5% in basis points
 const SECONDS_PER_YEAR: u64 = 31536000;
 
 /// Borrow assets against deposited collateral
-///
-/// # Arguments
-/// * `env` - The contract environment
-/// * `user` - The borrower's address
-/// * `asset` - The asset to borrow
-/// * `amount` - The amount to borrow
-/// * `collateral_asset` - The collateral asset
-/// * `collateral_amount` - The collateral amount
-///
-/// # Returns
-/// Returns Ok(()) on success or BorrowError on failure
-///
-/// # Security
-/// - Validates collateral ratio meets minimum requirements
-/// - Checks protocol is not paused
-/// - Validates debt ceiling not exceeded
-/// - Prevents overflow in calculations
 pub fn borrow(
     env: &Env,
     user: Address,
@@ -129,7 +118,7 @@ pub fn borrow(
 ) -> Result<(), BorrowError> {
     user.require_auth();
 
-    if is_paused(env) {
+    if pause::is_paused(env, PauseType::Borrow) {
         return Err(BorrowError::ProtocolPaused);
     }
 
@@ -184,12 +173,7 @@ pub fn borrow(
     Ok(())
 }
 
-/// Validate collateral ratio meets minimum requirements
 fn validate_collateral_ratio(collateral: i128, borrow: i128) -> Result<(), BorrowError> {
-    // To avoid overflow, check if collateral >= borrow * 1.5
-    // Which is: collateral * 10000 >= borrow * 15000
-    // Rearranged: collateral >= (borrow * 15000) / 10000
-
     let min_collateral = borrow
         .checked_mul(COLLATERAL_RATIO_MIN)
         .ok_or(BorrowError::Overflow)?
@@ -203,7 +187,6 @@ fn validate_collateral_ratio(collateral: i128, borrow: i128) -> Result<(), Borro
     Ok(())
 }
 
-/// Calculate accrued interest for a debt position
 fn calculate_interest(env: &Env, position: &DebtPosition) -> i128 {
     if position.borrowed_amount == 0 {
         return 0;
@@ -223,109 +206,90 @@ fn calculate_interest(env: &Env, position: &DebtPosition) -> i128 {
 fn get_debt_position(env: &Env, user: &Address) -> DebtPosition {
     env.storage()
         .persistent()
-        .get(&BorrowDataKey::UserDebt(user.clone()))
+        .get(&BorrowDataKey::BorrowUserDebt(user.clone()))
         .unwrap_or(DebtPosition {
             borrowed_amount: 0,
             interest_accrued: 0,
             last_update: env.ledger().timestamp(),
-            asset: user.clone(), // Placeholder, will be replaced on first borrow
+            asset: user.clone(),
         })
 }
 
 fn save_debt_position(env: &Env, user: &Address, position: &DebtPosition) {
     env.storage()
         .persistent()
-        .set(&BorrowDataKey::UserDebt(user.clone()), position);
+        .set(&BorrowDataKey::BorrowUserDebt(user.clone()), position);
 }
 
-fn get_collateral_position(env: &Env, user: &Address) -> CollateralPosition {
+fn get_collateral_position(env: &Env, user: &Address) -> BorrowCollateral {
     env.storage()
         .persistent()
-        .get(&BorrowDataKey::UserCollateral(user.clone()))
-        .unwrap_or(CollateralPosition {
+        .get(&BorrowDataKey::BorrowUserCollateral(user.clone()))
+        .unwrap_or(BorrowCollateral {
             amount: 0,
-            asset: user.clone(), // Placeholder, will be replaced on first borrow
+            asset: user.clone(),
         })
 }
 
-fn save_collateral_position(env: &Env, user: &Address, position: &CollateralPosition) {
+fn save_collateral_position(env: &Env, user: &Address, position: &BorrowCollateral) {
     env.storage()
         .persistent()
-        .set(&BorrowDataKey::UserCollateral(user.clone()), position);
+        .set(&BorrowDataKey::BorrowUserCollateral(user.clone()), position);
 }
 
 fn get_total_debt(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&BorrowDataKey::TotalDebt)
+        .get(&BorrowDataKey::BorrowTotalDebt)
         .unwrap_or(0)
 }
 
 fn set_total_debt(env: &Env, amount: i128) {
     env.storage()
         .persistent()
-        .set(&BorrowDataKey::TotalDebt, &amount);
+        .set(&BorrowDataKey::BorrowTotalDebt, &amount);
 }
 
 fn get_debt_ceiling(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&BorrowDataKey::DebtCeiling)
+        .get(&BorrowDataKey::BorrowDebtCeiling)
         .unwrap_or(i128::MAX)
 }
 
 fn get_min_borrow_amount(env: &Env) -> i128 {
     env.storage()
         .persistent()
-        .get(&BorrowDataKey::MinBorrowAmount)
+        .get(&BorrowDataKey::BorrowMinAmount)
         .unwrap_or(1000)
 }
 
-fn is_paused(env: &Env) -> bool {
-    env.storage()
-        .persistent()
-        .get(&BorrowDataKey::Paused)
-        .unwrap_or(false)
-}
-
 fn emit_borrow_event(env: &Env, user: Address, asset: Address, amount: i128, collateral: i128) {
-    let event = BorrowEvent {
+    BorrowEvent {
         user,
         asset,
         amount,
         collateral,
         timestamp: env.ledger().timestamp(),
-    };
-    env.events().publish((Symbol::new(env, "borrow"),), event);
+    }
+    .publish(env);
 }
 
-/// Initialize borrow settings (admin only)
 pub fn initialize_borrow_settings(
     env: &Env,
     debt_ceiling: i128,
     min_borrow_amount: i128,
 ) -> Result<(), BorrowError> {
+    // Note: ProtocolAdmin check should be performed by the caller (lib.rs)
     env.storage()
         .persistent()
-        .set(&BorrowDataKey::DebtCeiling, &debt_ceiling);
+        .set(&BorrowDataKey::BorrowDebtCeiling, &debt_ceiling);
     env.storage()
         .persistent()
-        .set(&BorrowDataKey::MinBorrowAmount, &min_borrow_amount);
-    env.storage()
-        .persistent()
-        .set(&BorrowDataKey::Paused, &false);
+        .set(&BorrowDataKey::BorrowMinAmount, &min_borrow_amount);
     Ok(())
 }
 
-/// Set protocol pause state (admin only)
-pub fn set_paused(env: &Env, paused: bool) -> Result<(), BorrowError> {
-    env.storage()
-        .persistent()
-        .set(&BorrowDataKey::Paused, &paused);
-    Ok(())
-}
-
-/// Get user's debt position
 pub fn get_user_debt(env: &Env, user: &Address) -> DebtPosition {
     let mut position = get_debt_position(env, user);
     let accrued = calculate_interest(env, &position);
@@ -333,7 +297,66 @@ pub fn get_user_debt(env: &Env, user: &Address) -> DebtPosition {
     position
 }
 
-/// Get user's collateral position
-pub fn get_user_collateral(env: &Env, user: &Address) -> CollateralPosition {
+pub fn get_user_collateral(env: &Env, user: &Address) -> BorrowCollateral {
     get_collateral_position(env, user)
+}
+
+pub fn set_admin(env: &Env, admin: &Address) {
+    env.storage()
+        .persistent()
+        .set(&BorrowDataKey::ProtocolAdmin, admin);
+}
+
+pub fn get_admin(env: &Env) -> Option<Address> {
+    env.storage()
+        .persistent()
+        .get(&BorrowDataKey::ProtocolAdmin)
+}
+
+/// Returns the oracle address if configured. Used by views for collateral/debt valuation.
+pub fn get_oracle(env: &Env) -> Option<Address> {
+    env.storage()
+        .persistent()
+        .get(&BorrowDataKey::OracleAddress)
+}
+
+/// Returns liquidation threshold in basis points (e.g. 8000 = 80%). Default 8000 if not set.
+pub fn get_liquidation_threshold_bps(env: &Env) -> i128 {
+    env.storage()
+        .persistent()
+        .get(&BorrowDataKey::LiquidationThresholdBps)
+        .unwrap_or(8000)
+}
+
+/// Set oracle address for price feeds (admin only). Caller must be admin and authorize.
+pub fn set_oracle(env: &Env, admin: &Address, oracle: Address) -> Result<(), BorrowError> {
+    let current = get_admin(env).ok_or(BorrowError::Unauthorized)?;
+    if *admin != current {
+        return Err(BorrowError::Unauthorized);
+    }
+    admin.require_auth();
+    env.storage()
+        .persistent()
+        .set(&BorrowDataKey::OracleAddress, &oracle);
+    Ok(())
+}
+
+/// Set liquidation threshold in basis points (admin only). E.g. 8000 = 80%.
+pub fn set_liquidation_threshold_bps(
+    env: &Env,
+    admin: &Address,
+    bps: i128,
+) -> Result<(), BorrowError> {
+    let current = get_admin(env).ok_or(BorrowError::Unauthorized)?;
+    if *admin != current {
+        return Err(BorrowError::Unauthorized);
+    }
+    admin.require_auth();
+    if bps <= 0 || bps > 10000 {
+        return Err(BorrowError::InvalidAmount);
+    }
+    env.storage()
+        .persistent()
+        .set(&BorrowDataKey::LiquidationThresholdBps, &bps);
+    Ok(())
 }
