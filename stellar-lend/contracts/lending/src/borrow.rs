@@ -11,7 +11,7 @@
 //! Minimum collateral ratio is 150% (15,000 basis points).
 
 use crate::pause::{self, PauseType};
-use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env, Symbol};
+use soroban_sdk::{contracterror, contractevent, contracttype, Address, Env};
 
 /// Errors that can occur during borrow operations.
 #[contracterror]
@@ -85,19 +85,31 @@ pub struct BorrowCollateral {
     pub asset: Address,
 }
 
-/// Event data emitted on each borrow operation.
 #[contractevent]
 #[derive(Clone, Debug)]
 pub struct BorrowEvent {
-    /// Borrower's address
     pub user: Address,
-    /// Borrowed asset address
     pub asset: Address,
-    /// Amount borrowed
     pub amount: i128,
-    /// Collateral amount provided
     pub collateral: i128,
-    /// Ledger timestamp of the borrow
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct DepositEvent {
+    pub user: Address,
+    pub asset: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug)]
+pub struct RepayEvent {
+    pub user: Address,
+    pub asset: Address,
+    pub amount: i128,
     pub timestamp: u64,
 }
 
@@ -199,8 +211,13 @@ pub fn deposit(env: &Env, user: Address, asset: Address, amount: i128) -> Result
 
     save_collateral_position(env, &user, &collateral_position);
 
-    env.events()
-        .publish((Symbol::new(env, "deposit"), user), (asset, amount));
+    DepositEvent {
+        user,
+        asset,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
 
     Ok(())
 }
@@ -261,8 +278,13 @@ pub fn repay(env: &Env, user: Address, asset: Address, amount: i128) -> Result<(
 
     save_debt_position(env, &user, &debt_position);
 
-    env.events()
-        .publish((Symbol::new(env, "repay"), user), (asset, amount));
+    RepayEvent {
+        user,
+        asset,
+        amount,
+        timestamp: env.ledger().timestamp(),
+    }
+    .publish(env);
 
     Ok(())
 }

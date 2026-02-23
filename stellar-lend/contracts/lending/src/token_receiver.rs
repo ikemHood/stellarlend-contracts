@@ -24,7 +24,7 @@ pub fn receive(
     amount: i128,
     payload: Vec<Val>,
 ) -> Result<(), BorrowError> {
-    if payload.len() == 0 {
+    if payload.is_empty() {
         return Err(BorrowError::InvalidAmount);
     }
 
