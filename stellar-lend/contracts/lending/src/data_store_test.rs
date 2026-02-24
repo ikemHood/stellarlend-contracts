@@ -18,7 +18,7 @@ use soroban_sdk::{
     Address, Bytes, Env, String
 };
 
-use crate::{DataStore, DataStoreClient, DataStoreError};
+use crate::data_store::{DataStore, DataStoreClient};
 
 // ═══════════════════════════════════════════════════════
 // Helpers

@@ -33,12 +33,10 @@
 // | `MAX_ENTRIES`      | 1 000  | Caps iteration cost in backup/restore          |
 // | `MAX_BACKUP_NAME`  | 32 B   | Short identifier, avoids key-space collision   |
 
-#![no_std]
-
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype,
     panic_with_error, symbol_short,
-    Address, Bytes, BytesN, Env, Map, String, Vec,
+    Address, Bytes, Env, String, Vec,
 };
 
 // ═══════════════════════════════════════════════════════
