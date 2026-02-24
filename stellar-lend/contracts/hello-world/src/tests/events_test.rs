@@ -136,6 +136,7 @@ pub struct TestPauseStateChangedEvent {
 // Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn setup() -> (Env, Address, HelloContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
@@ -144,6 +145,7 @@ fn setup() -> (Env, Address, HelloContractClient<'static>) {
     (env, contract_id, client)
 }
 
+#[allow(dead_code)]
 fn init(client: &HelloContractClient, admin: &Address) {
     client.initialize(admin);
 }
@@ -842,7 +844,12 @@ fn test_event_sequence_deposit_borrow_repay() {
         crate::tests::test_helpers::setup_env_with_native_asset();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
     token_client.mint(&user, &10_000);
-    token_client.approve(&user, &contract_id, &10_000, &(env.ledger().sequence() + 100));
+    token_client.approve(
+        &user,
+        &contract_id,
+        &10_000,
+        &(env.ledger().sequence() + 100),
+    );
 
     client.deposit_collateral(&user, &None, &50_000);
     let after_deposit = env.events().all().len();

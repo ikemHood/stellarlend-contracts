@@ -107,7 +107,12 @@ fn test_repay_accrues_interest_with_time_advance() {
         crate::tests::test_helpers::setup_env_with_native_asset();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
     token_client.mint(&user, &15_000);
-    token_client.approve(&user, &contract_id, &15_000, &(env.ledger().sequence() + 100));
+    token_client.approve(
+        &user,
+        &contract_id,
+        &15_000,
+        &(env.ledger().sequence() + 100),
+    );
 
     client.deposit_collateral(&user, &None, &20_000);
     client.borrow_asset(&user, &None, &5_000);
@@ -128,7 +133,12 @@ fn test_borrow_then_repay_full_debt_includes_interest() {
         crate::tests::test_helpers::setup_env_with_native_asset();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
     token_client.mint(&user, &15_000);
-    token_client.approve(&user, &contract_id, &15_000, &(env.ledger().sequence() + 100));
+    token_client.approve(
+        &user,
+        &contract_id,
+        &15_000,
+        &(env.ledger().sequence() + 100),
+    );
 
     client.deposit_collateral(&user, &None, &100_000);
     client.borrow_asset(&user, &None, &10_000);

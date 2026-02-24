@@ -43,7 +43,12 @@ fn integration_full_flow_deposit_borrow_repay_withdraw() {
         crate::tests::test_helpers::setup_env_with_native_asset();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
     token_client.mint(&user, &5_000);
-    token_client.approve(&user, &contract_id, &5_000, &(env.ledger().sequence() + 100));
+    token_client.approve(
+        &user,
+        &contract_id,
+        &5_000,
+        &(env.ledger().sequence() + 100),
+    );
 
     let deposit_amount = 10_000;
     client.deposit_collateral(&user, &None, &deposit_amount);
