@@ -51,19 +51,19 @@ pub enum OracleError {
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum OracleDataKey {
-    /// Price feeds: Map<Address, PriceFeed>
+    /// Latest price feed data for a specific asset
+    /// Value type: PriceFeed
     PriceFeed(Address),
-    /// Fallback price feeds: Map<Address, PriceFeed>
-    FallbackFeed(Address),
-    /// Primary oracle addresses: Map<Address, Address>
-    PrimaryOracle(Address),
-    /// Fallback oracle addresses: Map<Address, Address>
+    /// Address of the designated fallback oracle for an asset
+    /// Value type: Address
     FallbackOracle(Address),
-    /// Price cache: Map<Address, CachedPrice>
+    /// Transient price cache for improved gas efficiency
+    /// Value type: CachedPrice
     PriceCache(Address),
-    /// Oracle configuration
+    /// Global oracle safety and operational parameters
+    /// Value type: OracleConfig
     OracleConfig,
-    /// Pause switches for oracle operations
+    /// Pause switches specifically for oracle updates: Map<Symbol, bool>
     PauseSwitches,
 }
 

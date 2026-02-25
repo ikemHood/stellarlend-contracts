@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, log, symbol_short, Address,
     Env, String, Symbol, Vec,
