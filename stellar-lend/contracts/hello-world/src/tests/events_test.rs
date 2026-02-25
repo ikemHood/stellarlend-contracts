@@ -138,6 +138,7 @@ pub struct TestPauseStateChangedEvent {
 // Test helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
+#[allow(dead_code)]
 fn setup() -> (Env, Address, HelloContractClient<'static>) {
     let env = Env::default();
     env.mock_all_auths();
@@ -146,6 +147,7 @@ fn setup() -> (Env, Address, HelloContractClient<'static>) {
     (env, contract_id, client)
 }
 
+#[allow(dead_code)]
 fn init(client: &HelloContractClient, admin: &Address) {
     client.initialize(admin);
 }

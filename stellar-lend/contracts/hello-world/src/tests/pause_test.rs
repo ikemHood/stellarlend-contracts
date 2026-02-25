@@ -24,7 +24,7 @@
 //!   the state always reflects the last write.
 
 use crate::{HelloContract, HelloContractClient};
-use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env, Map, Symbol};
+use soroban_sdk::{testutils::Address as _, Address, Env, Map, Symbol};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 

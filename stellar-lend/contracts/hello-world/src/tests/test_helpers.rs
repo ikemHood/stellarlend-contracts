@@ -2,7 +2,7 @@
 //! performs deposit/borrow/repay with asset = None, so that NativeAssetAddress is set.
 
 use crate::{HelloContract, HelloContractClient};
-use soroban_sdk::{testutils::Address as _, testutils::Ledger, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, Env};
 
 /// Full setup: env, contract, client, admin, user, and native asset address set.
 /// Use this for tests that call deposit_collateral/borrow_asset/repay_debt with None.
