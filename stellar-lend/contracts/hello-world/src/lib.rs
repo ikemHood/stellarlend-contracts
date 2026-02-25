@@ -29,6 +29,7 @@ mod borrow;
 mod deposit;
 mod events;
 mod repay;
+mod reserve;
 mod risk_management;
 mod withdraw;
 
