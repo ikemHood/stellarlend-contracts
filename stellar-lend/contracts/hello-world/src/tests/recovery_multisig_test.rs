@@ -14,7 +14,7 @@
 //! - Proposal lifecycle (propose, approve, execute)
 //! - Threshold enforcement
 //! - Complex scenarios (parallel proposals, admin rotation)
-
+#![allow(unused_variables)]
 #![cfg(test)]
 
 use crate::governance::*;

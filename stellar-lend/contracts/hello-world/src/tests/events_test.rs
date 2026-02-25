@@ -16,7 +16,9 @@ use crate::events::{
     DepositEvent, FlashLoanInitiatedEvent, FlashLoanRepaidEvent, LiquidationEvent,
     PauseStateChangedEvent, PriceUpdatedEvent, RepayEvent, RiskParamsUpdatedEvent, WithdrawalEvent,
 };
+
 use crate::{HelloContract, HelloContractClient};
+
 use soroban_sdk::{
     contracttype,
     testutils::{Address as _, Events},

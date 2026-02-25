@@ -59,13 +59,15 @@ pub enum FlashLoanError {
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug, PartialEq))]
 pub enum FlashLoanDataKey {
-    /// Flash loan fee in basis points (e.g., 9 = 0.09%)
+    /// Basis points fee charged for flash loans (legacy)
     FlashLoanFeeBps,
-    /// Active flash loans: Map<(Address, Address), FlashLoanRecord>
+    /// Transient record of an active flash loan (prevents reentrancy)
+    /// Value type: FlashLoanRecord
     ActiveFlashLoan(Address, Address),
-    /// Flash loan configuration
+    /// Global flash loan parameters (fee, min/max amount)
+    /// Value type: FlashLoanConfig
     FlashLoanConfig,
-    /// Pause switches for flash loan operations
+    /// Pause switches specifically for flash loan operations: Map<Symbol, bool>
     PauseSwitches,
 }
 
@@ -333,6 +335,20 @@ pub fn repay_flash_loan(
         &env.current_contract_address(), // to (this contract)
         &required_repayment,
     );
+
+    // Credit fee to protocol reserve
+    if record.fee > 0 {
+        let reserve_key = DepositDataKey::ProtocolReserve(Some(asset.clone()));
+        let current_reserve = env
+            .storage()
+            .persistent()
+            .get::<DepositDataKey, i128>(&reserve_key)
+            .unwrap_or(0);
+        env.storage().persistent().set(
+            &reserve_key,
+            &(current_reserve.checked_add(record.fee).ok_or(FlashLoanError::Overflow)?),
+        );
+    }
 
     // Clear flash loan record
     clear_flash_loan(env, &user, &asset);
