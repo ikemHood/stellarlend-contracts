@@ -560,6 +560,9 @@ pub fn set_multisig_config(
         .instance()
         .set(&GovernanceDataKey::MultisigConfig, &config);
 
+    Ok(())
+}
+
 /// Return the list of admins who have approved a proposal, or `None` if not found.
 pub fn get_proposal_approvals(env: &Env, proposal_id: u64) -> Option<Vec<Address>> {
     let approvals_key = GovernanceDataKey::ProposalApprovals(proposal_id);

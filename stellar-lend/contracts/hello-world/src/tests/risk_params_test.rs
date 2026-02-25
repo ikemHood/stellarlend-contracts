@@ -93,6 +93,8 @@ fn test_get_liquidation_incentive_amount() {
     let liquidated_amount = 500_000;
     // default incentive is 1_000 (10%)
     assert_eq!(client.get_liquidation_incentive_amount(&liquidated_amount), 50_000);
+}
+
 //! # Risk Management Parameters Test Suite
 //!
 //! Comprehensive tests for risk parameter configuration and enforcement (#290).
