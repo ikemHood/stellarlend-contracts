@@ -72,7 +72,12 @@ fn test_repay_debt_success_native() {
     // Mint tokens to user for repayment (since borrow_asset placeholder doesn't transfer)
     let native_token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset_addr);
     native_token_client.mint(&user, &borrow_amount);
-    native_token_client.approve(&user, &contract_id, &borrow_amount, &(env.ledger().sequence() + 100));
+    native_token_client.approve(
+        &user,
+        &contract_id,
+        &borrow_amount,
+        &(env.ledger().sequence() + 100),
+    );
 
     // Verify balance after minting
     let token_client = soroban_sdk::token::Client::new(&env, &native_asset_addr);

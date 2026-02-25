@@ -16,7 +16,9 @@ use crate::events::{
     DepositEvent, FlashLoanInitiatedEvent, FlashLoanRepaidEvent, LiquidationEvent,
     PauseStateChangedEvent, PriceUpdatedEvent, RepayEvent, RiskParamsUpdatedEvent, WithdrawalEvent,
 };
+
 use crate::{HelloContract, HelloContractClient};
+
 use soroban_sdk::{
     contracttype,
     testutils::{Address as _, Events},
@@ -842,7 +844,12 @@ fn test_event_sequence_deposit_borrow_repay() {
         crate::tests::test_helpers::setup_env_with_native_asset();
     let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &native_asset);
     token_client.mint(&user, &10_000);
-    token_client.approve(&user, &contract_id, &10_000, &(env.ledger().sequence() + 100));
+    token_client.approve(
+        &user,
+        &contract_id,
+        &10_000,
+        &(env.ledger().sequence() + 100),
+    );
 
     client.deposit_collateral(&user, &None, &50_000);
     let after_deposit = env.events().all().len();
