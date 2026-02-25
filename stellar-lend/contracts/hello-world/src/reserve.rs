@@ -84,11 +84,9 @@ pub enum ReserveDataKey {
     /// Reserve balance per asset: ReserveBalance(asset) -> i128
     /// Tracks accumulated protocol reserves for each asset
     ReserveBalance(Option<Address>),
-    
     /// Reserve factor per asset: ReserveFactor(asset) -> i128
     /// Percentage of interest allocated to reserves (in basis points)
     ReserveFactor(Option<Address>),
-    
     /// Treasury address: TreasuryAddress -> Address
     /// Destination for reserve withdrawals
     TreasuryAddress,
@@ -133,10 +131,7 @@ pub fn initialize_reserve_config(
 
     // Emit initialization event
     let topics = (Symbol::new(env, "reserve_initialized"),);
-    env.events().publish(
-        topics,
-        (asset, reserve_factor_bps),
-    );
+    env.events().publish(topics, (asset, reserve_factor_bps));
 
     Ok(())
 }
@@ -183,14 +178,8 @@ pub fn set_reserve_factor(
         .set(&factor_key, &reserve_factor_bps);
 
     // Emit event
-    let topics = (
-        Symbol::new(env, "reserve_factor_updated"),
-        caller,
-    );
-    env.events().publish(
-        topics,
-        (asset, reserve_factor_bps),
-    );
+    let topics = (Symbol::new(env, "reserve_factor_updated"), caller);
+    env.events().publish(topics, (asset, reserve_factor_bps));
 
     Ok(())
 }
@@ -266,11 +255,7 @@ pub fn accrue_reserve(
 
     // Update reserve balance
     let balance_key = ReserveDataKey::ReserveBalance(asset.clone());
-    let current_balance: i128 = env
-        .storage()
-        .persistent()
-        .get(&balance_key)
-        .unwrap_or(0);
+    let current_balance: i128 = env.storage().persistent().get(&balance_key).unwrap_or(0);
 
     let new_balance = current_balance
         .checked_add(reserve_amount)
@@ -280,10 +265,8 @@ pub fn accrue_reserve(
 
     // Emit event
     let topics = (Symbol::new(env, "reserve_accrued"),);
-    env.events().publish(
-        topics,
-        (asset, reserve_amount, new_balance),
-    );
+    env.events()
+        .publish(topics, (asset, reserve_amount, new_balance));
 
     Ok((reserve_amount, lender_amount))
 }
@@ -298,10 +281,7 @@ pub fn accrue_reserve(
 /// Current reserve balance
 pub fn get_reserve_balance(env: &Env, asset: Option<Address>) -> i128 {
     let balance_key = ReserveDataKey::ReserveBalance(asset);
-    env.storage()
-        .persistent()
-        .get(&balance_key)
-        .unwrap_or(0)
+    env.storage().persistent().get(&balance_key).unwrap_or(0)
 }
 
 /// Set the treasury address (admin only)
@@ -341,10 +321,7 @@ pub fn set_treasury_address(
         .set(&ReserveDataKey::TreasuryAddress, &treasury);
 
     // Emit event
-    let topics = (
-        Symbol::new(env, "treasury_address_set"),
-        caller,
-    );
+    let topics = (Symbol::new(env, "treasury_address_set"), caller);
     env.events().publish(topics, treasury);
 
     Ok(())
@@ -411,11 +388,7 @@ pub fn withdraw_reserve_to_treasury(
 
     // Get current reserve balance
     let balance_key = ReserveDataKey::ReserveBalance(asset.clone());
-    let current_balance: i128 = env
-        .storage()
-        .persistent()
-        .get(&balance_key)
-        .unwrap_or(0);
+    let current_balance: i128 = env.storage().persistent().get(&balance_key).unwrap_or(0);
 
     // Validate sufficient reserves
     if amount > current_balance {
@@ -432,10 +405,7 @@ pub fn withdraw_reserve_to_treasury(
     // Transfer tokens to treasury
     // Note: In production, this would call the token contract's transfer function
     // For now, we emit an event indicating the transfer should occur
-    let topics = (
-        Symbol::new(env, "reserve_withdrawn"),
-        caller,
-    );
+    let topics = (Symbol::new(env, "reserve_withdrawn"), caller);
     env.events().publish(
         topics,
         (asset.clone(), treasury.clone(), amount, new_balance),
@@ -446,11 +416,7 @@ pub fn withdraw_reserve_to_treasury(
     {
         if let Some(ref asset_addr) = asset {
             let token_client = soroban_sdk::token::Client::new(env, asset_addr);
-            token_client.transfer(
-                &env.current_contract_address(),
-                &treasury,
-                &amount,
-            );
+            token_client.transfer(&env.current_contract_address(), &treasury, &amount);
         }
     }
 
@@ -490,10 +456,7 @@ fn require_admin(env: &Env, caller: &Address) -> Result<(), ReserveError> {
 ///
 /// # Returns
 /// Tuple of (reserve_balance, reserve_factor_bps, treasury_address)
-pub fn get_reserve_stats(
-    env: &Env,
-    asset: Option<Address>,
-) -> (i128, i128, Option<Address>) {
+pub fn get_reserve_stats(env: &Env, asset: Option<Address>) -> (i128, i128, Option<Address>) {
     let balance = get_reserve_balance(env, asset.clone());
     let factor = get_reserve_factor(env, asset);
     let treasury = get_treasury_address(env);

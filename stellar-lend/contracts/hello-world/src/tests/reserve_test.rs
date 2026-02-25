@@ -133,15 +133,37 @@ fn test_initialize_reserve_config_success() {
     let asset = Some(Address::generate(&env));
 
     // Initialize with default reserve factor
-    let result = test_initialize_reserve_config(&env, &contract_id, &contract_id,contract_id,contract_id, asset.clone(), DEFAULT_RESERVE_FACTOR_BPS);
+    let result = test_initialize_reserve_config(
+        &env,
+        &contract_id,
+        &contract_id,
+        contract_id,
+        contract_id,
+        asset.clone(),
+        DEFAULT_RESERVE_FACTOR_BPS,
+    );
     assert!(result.is_ok());
 
     // Verify reserve factor is set
-    let factor = test_get_reserve_factor(&env, &contract_id, &contract_id,contract_id,contract_id, asset.clone());
+    let factor = test_get_reserve_factor(
+        &env,
+        &contract_id,
+        &contract_id,
+        contract_id,
+        contract_id,
+        asset.clone(),
+    );
     assert_eq!(factor, DEFAULT_RESERVE_FACTOR_BPS);
 
     // Verify reserve balance is initialized to zero
-    let balance = test_get_reserve_balance(&env, &contract_id, &contract_id,contract_id,contract_id, asset);
+    let balance = test_get_reserve_balance(
+        &env,
+        &contract_id,
+        &contract_id,
+        contract_id,
+        contract_id,
+        asset,
+    );
     assert_eq!(balance, 0);
 }
 
@@ -179,7 +201,8 @@ fn test_initialize_reserve_config_max_factor() {
     let asset = Some(Address::generate(&env));
 
     // Initialize with maximum reserve factor (50%)
-    let result = test_initialize_reserve_config(&env, &contract_id, asset.clone(), MAX_RESERVE_FACTOR_BPS);
+    let result =
+        test_initialize_reserve_config(&env, &contract_id, asset.clone(), MAX_RESERVE_FACTOR_BPS);
     assert!(result.is_ok());
 
     let factor = test_get_reserve_factor(&env, &contract_id, asset);
@@ -192,7 +215,8 @@ fn test_initialize_reserve_config_exceeds_max() {
     let asset = Some(Address::generate(&env));
 
     // Try to initialize with reserve factor > 50%
-    let result = test_initialize_reserve_config(&env, &contract_id, asset, MAX_RESERVE_FACTOR_BPS + 1);
+    let result =
+        test_initialize_reserve_config(&env, &contract_id, asset, MAX_RESERVE_FACTOR_BPS + 1);
     assert_eq!(result, Err(ReserveError::InvalidReserveFactor));
 }
 
@@ -211,7 +235,8 @@ fn test_initialize_reserve_config_native_asset() {
     let (env, contract_id, _admin, _user, _treasury) = setup_test_env();
 
     // Initialize for native asset (None)
-    let result = test_initialize_reserve_config(&env, &contract_id, None, DEFAULT_RESERVE_FACTOR_BPS);
+    let result =
+        test_initialize_reserve_config(&env, &contract_id, None, DEFAULT_RESERVE_FACTOR_BPS);
     assert!(result.is_ok());
 
     let factor = test_get_reserve_factor(&env, &contract_id, None);
@@ -228,7 +253,13 @@ fn test_set_reserve_factor_by_admin() {
     let asset = Some(Address::generate(&env));
 
     // Initialize first
-    test_initialize_reserve_config(&env, &contract_id, asset.clone(), DEFAULT_RESERVE_FACTOR_BPS).unwrap();
+    test_initialize_reserve_config(
+        &env,
+        &contract_id,
+        asset.clone(),
+        DEFAULT_RESERVE_FACTOR_BPS,
+    )
+    .unwrap();
 
     // Admin sets new reserve factor (25%)
     let new_factor = 2500i128;
@@ -247,7 +278,13 @@ fn test_set_reserve_factor_by_non_admin() {
     let asset = Some(Address::generate(&env));
 
     // Initialize first
-    test_initialize_reserve_config(&env, &contract_id, asset.clone(), DEFAULT_RESERVE_FACTOR_BPS).unwrap();
+    test_initialize_reserve_config(
+        &env,
+        &contract_id,
+        asset.clone(),
+        DEFAULT_RESERVE_FACTOR_BPS,
+    )
+    .unwrap();
 
     // Non-admin tries to set reserve factor - should fail
     let _ = test_set_reserve_factor(&env, &contract_id, user, asset, 2000);
@@ -259,10 +296,17 @@ fn test_set_reserve_factor_exceeds_max() {
     let asset = Some(Address::generate(&env));
 
     // Initialize first
-    test_initialize_reserve_config(&env, &contract_id, asset.clone(), DEFAULT_RESERVE_FACTOR_BPS).unwrap();
+    test_initialize_reserve_config(
+        &env,
+        &contract_id,
+        asset.clone(),
+        DEFAULT_RESERVE_FACTOR_BPS,
+    )
+    .unwrap();
 
     // Try to set reserve factor > 50%
-    let result = test_set_reserve_factor(&env, &contract_id, admin, asset, MAX_RESERVE_FACTOR_BPS + 1);
+    let result =
+        test_set_reserve_factor(&env, &contract_id, admin, asset, MAX_RESERVE_FACTOR_BPS + 1);
     assert_eq!(result, Err(ReserveError::InvalidReserveFactor));
 }
 
@@ -272,7 +316,13 @@ fn test_set_reserve_factor_to_zero() {
     let asset = Some(Address::generate(&env));
 
     // Initialize first
-    test_initialize_reserve_config(&env, &contract_id, asset.clone(), DEFAULT_RESERVE_FACTOR_BPS).unwrap();
+    test_initialize_reserve_config(
+        &env,
+        &contract_id,
+        asset.clone(),
+        DEFAULT_RESERVE_FACTOR_BPS,
+    )
+    .unwrap();
 
     // Set reserve factor to zero (disable reserves)
     let result = test_set_reserve_factor(&env, &contract_id, admin, asset.clone(), 0);
@@ -365,7 +415,8 @@ fn test_accrue_reserve_max_factor() {
     let asset = Some(Address::generate(&env));
 
     // Initialize with 50% reserve factor
-    test_initialize_reserve_config(&env, &contract_id, asset.clone(), MAX_RESERVE_FACTOR_BPS).unwrap();
+    test_initialize_reserve_config(&env, &contract_id, asset.clone(), MAX_RESERVE_FACTOR_BPS)
+        .unwrap();
 
     // Accrue reserves from 1000 units of interest
     let interest = 1000i128;
@@ -392,15 +443,24 @@ fn test_accrue_reserve_multiple_times() {
 
     // First accrual: 1000 interest
     test_accrue_reserve(&env, &contract_id, asset.clone(), 1000).unwrap();
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 100);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        100
+    );
 
     // Second accrual: 500 interest
     test_accrue_reserve(&env, &contract_id, asset.clone(), 500).unwrap();
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 150); // 100 + 50
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        150
+    ); // 100 + 50
 
     // Third accrual: 2000 interest
     test_accrue_reserve(&env, &contract_id, asset.clone(), 2000).unwrap();
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 350); // 150 + 200
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        350
+    ); // 150 + 200
 }
 
 #[test]
@@ -494,12 +554,18 @@ fn test_update_treasury_address() {
 
     // Set initial treasury address
     test_set_treasury_address(&env, &contract_id, admin.clone(), treasury.clone()).unwrap();
-    assert_eq!(test_get_treasury_address(&env, &contract_id), Some(treasury));
+    assert_eq!(
+        test_get_treasury_address(&env, &contract_id),
+        Some(treasury)
+    );
 
     // Update to new treasury address
     let new_treasury = Address::generate(&env);
     test_set_treasury_address(&env, &contract_id, admin, new_treasury.clone()).unwrap();
-    assert_eq!(test_get_treasury_address(&env, &contract_id), Some(new_treasury));
+    assert_eq!(
+        test_get_treasury_address(&env, &contract_id),
+        Some(new_treasury)
+    );
 }
 
 // ============================================================================
@@ -630,12 +696,20 @@ fn test_withdraw_reserve_multiple_times() {
     test_accrue_reserve(&env, &contract_id, asset.clone(), 10000).unwrap(); // Accrues 1000
 
     // First withdrawal: 300
-    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset.clone(), 300).unwrap();
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 700);
+    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset.clone(), 300)
+        .unwrap();
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        700
+    );
 
     // Second withdrawal: 200
-    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset.clone(), 200).unwrap();
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 500);
+    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset.clone(), 200)
+        .unwrap();
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        500
+    );
 
     // Third withdrawal: 500 (remaining)
     test_withdraw_reserve_to_treasury(&env, &contract_id, admin, asset.clone(), 500).unwrap();
@@ -714,22 +788,35 @@ fn test_complete_reserve_lifecycle() {
     test_accrue_reserve(&env, &contract_id, asset.clone(), 10000).unwrap(); // +1000
     test_accrue_reserve(&env, &contract_id, asset.clone(), 5000).unwrap(); // +500
     test_accrue_reserve(&env, &contract_id, asset.clone(), 2000).unwrap(); // +200
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 1700);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        1700
+    );
 
     // 4. Withdraw partial reserves
-    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset.clone(), 700).unwrap();
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 1000);
+    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset.clone(), 700)
+        .unwrap();
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        1000
+    );
 
     // 5. Accrue more reserves
     test_accrue_reserve(&env, &contract_id, asset.clone(), 3000).unwrap(); // +300
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 1300);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        1300
+    );
 
     // 6. Update reserve factor
     test_set_reserve_factor(&env, &contract_id, admin.clone(), asset.clone(), 2000).unwrap();
 
     // 7. Accrue with new factor
     test_accrue_reserve(&env, &contract_id, asset.clone(), 5000).unwrap(); // +1000 (20%)
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 2300);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        2300
+    );
 
     // 8. Withdraw remaining
     test_withdraw_reserve_to_treasury(&env, &contract_id, admin, asset.clone(), 2300).unwrap();
@@ -753,11 +840,18 @@ fn test_multiple_assets_independent_reserves() {
     test_accrue_reserve(&env, &contract_id, asset2.clone(), 10000).unwrap(); // +2000
 
     // Verify independent balances
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset1.clone()), 1000);
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset2.clone()), 2000);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset1.clone()),
+        1000
+    );
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset2.clone()),
+        2000
+    );
 
     // Withdraw from asset1
-    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset1.clone(), 500).unwrap();
+    test_withdraw_reserve_to_treasury(&env, &contract_id, admin.clone(), asset1.clone(), 500)
+        .unwrap();
 
     // Verify asset2 is unaffected
     assert_eq!(test_get_reserve_balance(&env, &contract_id, asset1), 500);
@@ -787,13 +881,19 @@ fn test_reserve_factor_change_does_not_affect_existing_balance() {
     // Initialize with 10% factor
     test_initialize_reserve_config(&env, &contract_id, asset.clone(), 1000).unwrap();
     test_accrue_reserve(&env, &contract_id, asset.clone(), 10000).unwrap(); // +1000
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 1000);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        1000
+    );
 
     // Change factor to 20%
     test_set_reserve_factor(&env, &contract_id, admin, asset.clone(), 2000).unwrap();
 
     // Existing balance should remain unchanged
-    assert_eq!(test_get_reserve_balance(&env, &contract_id, asset.clone()), 1000);
+    assert_eq!(
+        test_get_reserve_balance(&env, &contract_id, asset.clone()),
+        1000
+    );
 
     // New accruals use new factor
     test_accrue_reserve(&env, &contract_id, asset.clone(), 10000).unwrap(); // +2000 (20%)

@@ -2,42 +2,21 @@
 #![allow(deprecated)]
 use soroban_sdk::{contract, contractimpl, Address, Bytes, Env};
 
-
 mod borrow;
 mod pause;
-<<<<<<< Updated upstream
+pub mod reserve;
+mod withdraw;
 
 use borrow::{
     borrow, get_admin, get_user_collateral, get_user_debt, initialize_borrow_settings, set_admin,
     set_liquidation_threshold_bps, set_oracle, BorrowCollateral, BorrowError, DebtPosition,
-=======
-mod token_receiver;
-mod withdraw;
-pub mod reserve;
-use borrow::{
-    borrow,
-    get_admin,
-    set_admin,
-    get_user_collateral as get_borrow_collateral,
-    get_user_debt,
-    initialize_borrow_settings,
-    repay as borrow_repay,
-    set_liquidation_threshold_bps,
-    set_oracle,
-    BorrowCollateral,
-    BorrowError,
-    DebtPosition,
->>>>>>> Stashed changes
 };
 use pause::{is_paused, set_pause, PauseType};
 
 mod deposit;
 use deposit::{
-    deposit,
-    get_user_collateral as get_deposit_collateral,
-    initialize_deposit_settings,
-    DepositCollateral,
-    DepositError,
+    deposit, get_user_collateral as get_deposit_collateral, initialize_deposit_settings,
+    DepositCollateral, DepositError,
 };
 
 mod flash_loan;
@@ -140,25 +119,8 @@ impl LendingContract {
         if is_paused(&env, PauseType::Repay) {
             return Err(BorrowError::ProtocolPaused);
         }
-<<<<<<< Updated upstream
-        // Stub implementation
+        // Stub implementation - to be implemented
         Ok(())
-=======
-        borrow::repay(&env, user, asset, amount)
-    }
-
-    /// Deposit collateral for a borrow position
-    pub fn deposit_collateral(
-        env: Env,
-        user: Address,
-        asset: Address,
-        amount: i128,
-    ) -> Result<(), BorrowError> {
-        user.require_auth();
-        if is_paused(&env, PauseType::Deposit) {
-            return Err(BorrowError::ProtocolPaused);
-        }
-        borrow::deposit(&env, user, asset, amount)
     }
 
     /// Deposit collateral into the protocol
@@ -172,7 +134,6 @@ impl LendingContract {
             return Err(DepositError::DepositPaused);
         }
         deposit(&env, user, asset, amount)
->>>>>>> Stashed changes
     }
 
     /// Liquidate a position
@@ -199,11 +160,7 @@ impl LendingContract {
 
     /// Get user's collateral position
     pub fn get_user_collateral(env: Env, user: Address) -> BorrowCollateral {
-<<<<<<< Updated upstream
         get_user_collateral(&env, &user)
-=======
-        borrow::get_user_collateral(&env, &user)
->>>>>>> Stashed changes
     }
 
     // ═══════════════════════════════════════════════════════════════════
