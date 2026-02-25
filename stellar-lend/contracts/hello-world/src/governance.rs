@@ -807,7 +807,7 @@ fn emit_vote_cast_event(
     env.events().publish(topics, (vote.clone(), *voting_power));
 }
 
-fn emit_proposal_executed_event(env: &Env, proposal_id: &u64, executor: &Address) {
+pub fn emit_proposal_executed_event(env: &Env, proposal_id: &u64, executor: &Address) {
     let topics = (
         Symbol::new(env, "proposal_executed"),
         *proposal_id,
@@ -821,7 +821,7 @@ fn emit_proposal_failed_event(env: &Env, proposal_id: &u64) {
     env.events().publish(topics, ());
 }
 
-fn emit_approval_event(env: &Env, proposal_id: &u64, approver: &Address) {
+pub fn emit_approval_event(env: &Env, proposal_id: &u64, approver: &Address) {
     let topics = (
         Symbol::new(env, "proposal_approved"),
         *proposal_id,
@@ -1194,17 +1194,17 @@ pub fn get_recovery_approvals(env: &Env) -> Option<Vec<Address>> {
 // Recovery Events
 // ============================================================================
 
-fn emit_guardian_added_event(env: &Env, guardian: &Address) {
+pub fn emit_guardian_added_event(env: &Env, guardian: &Address) {
     let topics = (Symbol::new(env, "guardian_added"), guardian.clone());
     env.events().publish(topics, ());
 }
 
-fn emit_guardian_removed_event(env: &Env, guardian: &Address) {
+pub fn emit_guardian_removed_event(env: &Env, guardian: &Address) {
     let topics = (Symbol::new(env, "guardian_removed"), guardian.clone());
     env.events().publish(topics, ());
 }
 
-fn emit_recovery_started_event(
+pub fn emit_recovery_started_event(
     env: &Env,
     old_admin: &Address,
     new_admin: &Address,
@@ -1218,12 +1218,12 @@ fn emit_recovery_started_event(
     env.events().publish(topics, initiator.clone());
 }
 
-fn emit_recovery_approved_event(env: &Env, approver: &Address) {
+pub fn emit_recovery_approved_event(env: &Env, approver: &Address) {
     let topics = (Symbol::new(env, "recovery_approved"), approver.clone());
     env.events().publish(topics, ());
 }
 
-fn emit_recovery_executed_event(
+pub fn emit_recovery_executed_event(
     env: &Env,
     old_admin: &Address,
     new_admin: &Address,
